@@ -46,9 +46,9 @@ type TaskPatchPayload = Partial<
 
 const heroUrl = `${import.meta.env.BASE_URL}hero-dailyproof.png`;
 const themes: Array<{ id: ThemeName; label: string; icon: ReactNode }> = [
-  { id: "night", label: "黑夜", icon: <Moon size={15} /> },
-  { id: "dawn", label: "明亮", icon: <Sun size={15} /> },
-  { id: "pulse", label: "脉冲", icon: <Sparkles size={15} /> }
+  { id: "dawn", label: "晨光", icon: <Sun size={15} /> },
+  { id: "pulse", label: "脉冲", icon: <Sparkles size={15} /> },
+  { id: "night", label: "夜航", icon: <Moon size={15} /> }
 ];
 
 const practiceTags = [
@@ -170,6 +170,7 @@ function TopBar({
           {themes.map((item) => (
             <button key={item.id} className={theme === item.id ? "active" : ""} onClick={() => setTheme(item.id)} title={item.label}>
               {item.icon}
+              <span>{item.label}</span>
             </button>
           ))}
         </div>
@@ -192,35 +193,43 @@ function TopBar({
 
 function Landing({ onAuthed }: { onAuthed: (user: User) => void }) {
   return (
-    <main>
-      <section className="hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(3,8,10,.97) 0%, rgba(3,8,10,.88) 38%, rgba(3,8,10,.46) 70%, rgba(3,8,10,.18) 100%), url(${heroUrl})` }}>
-        <div className="hero-content">
-          <p className="eyebrow">Proof before promise</p>
-          <h1>把每天变成证据。</h1>
+    <main className="home-page">
+      <section className="hero home-hero" style={{ backgroundImage: `var(--home-hero-overlay), url(${heroUrl})` }}>
+        <div className="hero-content home-hero-copy">
+          <p className="eyebrow"><span /> Proof before promise</p>
+          <h1>
+            把每天变成
+            <span>可见的证据。</span>
+          </h1>
           <p className="hero-copy">
-            月计划自动落成每日节奏，倒计时结束自动写入状态；正确率、用时和完成率沉淀成可回看的进步曲线。
+            DailyProof 把月计划拆成轻盈的每日节奏：专注、刷题、复盘和正确率都被记录下来，让进步不再靠感觉，而是被清晰地看见。
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#auth">
               进入系统 <ChevronRight size={18} />
             </a>
             <a className="ghost-link" href="#guide">
-              查看用法
+              查看流程
             </a>
+          </div>
+          <div className="home-proof-strip" aria-label="DailyProof 工作流预览">
+            <span><b>01</b> 月计划自动拆解</span>
+            <span><b>27min</b> 控制单套用时</span>
+            <span><b>90%</b> 追踪正确率目标</span>
           </div>
         </div>
         <AuthPanel onAuthed={onAuthed} />
       </section>
 
-      <section id="guide" className="guide-band">
+      <section id="guide" className="guide-band home-guide">
         <div className="section-head">
-          <p className="eyebrow">Daily operating system</p>
+          <p className="eyebrow"><span /> Daily operating system</p>
           <h2>目标不是一句口号，而是一组每天可验证的数据。</h2>
         </div>
         <div className="guide-grid">
           {[
-            ["定月计划", "输入目标、时段和复盘要求，系统拆成每日任务。"],
-            ["两类任务", "事项一键勾选，刷题任务需要记录题量、正确率、用时和标签。"],
+            ["定月计划", "输入目标、时段和复盘要求，系统把月目标拆成每天可执行的任务节奏。"],
+            ["两类任务", "事项一键完成，刷题任务记录题量、正确率、用时和标签，复盘更有依据。"],
             ["趋势统计", "按资料分析、数量关系、言语理解等标签汇总日、周、月和总数据。"],
             ["日历回看", "像翻日历一样看见每天的完成率、刷题量和任务轨迹。"]
           ].map(([title, text], index) => (
