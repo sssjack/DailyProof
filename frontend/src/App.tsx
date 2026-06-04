@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardList,
   Gauge,
+  Home,
   LogOut,
   Moon,
   Pause,
@@ -137,25 +138,29 @@ function TopBar({
   setTheme: (theme: ThemeName) => void;
 }) {
   return (
-    <header className="topbar">
+    <header className={`topbar ${user ? "app-sidebar" : "public-topbar"}`}>
       <button className="brand" onClick={() => setView(user ? "dashboard" : "home")} title="DailyProof">
         <span className="brand-mark">D</span>
         <span className="brand-copy">DailyProof</span>
       </button>
       <nav className="topnav">
         <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>
-          首页
+          <Home size={20} />
+          <span>Home</span>
         </button>
         {user && (
           <>
             <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>
-              工作台
+              <ClipboardList size={20} />
+              <span>Dashboard</span>
             </button>
             <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
-              数据
+              <BarChart3 size={20} />
+              <span>Analytics</span>
             </button>
             <button className={view === "calendar" ? "active" : ""} onClick={() => setView("calendar")}>
-              日历
+              <CalendarDays size={20} />
+              <span>Calendar</span>
             </button>
           </>
         )}
@@ -363,35 +368,44 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
   };
 
   const todayStats = stats?.daily.find((item) => item.date === daily?.date);
+  const currentPlan = plans[0];
+  const proofDate = daily?.date ? new Date(`${daily.date}T00:00:00`) : today;
+  const displayDate = `${proofDate.getFullYear()}. ${String(proofDate.getMonth() + 1).padStart(2, "0")}. ${String(proofDate.getDate()).padStart(2, "0")}`;
+  const weekday = proofDate.toLocaleDateString("en-US", { weekday: "long" });
 
   return (
-    <main className="workspace">
+    <main className="workspace dashboard-workspace">
       <div className="page-head dashboard-head">
         <div className="page-copy">
-          <p className="eyebrow">Today proof · {user.name}</p>
-          <h1>让今天成为一枚清晰的证据。</h1>
-          <p className="page-subtitle">计划不是催促自己，而是让时间拥有形状；完成一项，就把生活从模糊里取回一点。</p>
+          <p className="eyebrow"><span /> Today proof</p>
+          <h1>
+            让今天成为一枚
+            <span className="headline-gradient">清晰的证据。</span>
+          </h1>
+          <p className="page-subtitle">像呼吸一样推进计划：轻盈开始，专注执行，把每一段时间都沉淀成看得见的证据。</p>
         </div>
-        <div className="head-actions">
-          <span>把承诺放轻，把证据留下。</span>
+        <div className="head-actions date-card">
+          <b>{displayDate}</b>
+          <span>{weekday}, keep going!</span>
           <button className="primary-btn compact" onClick={refresh}>
             <RefreshCw size={17} /> 同步
           </button>
         </div>
       </div>
       <div className="metric-grid dashboard-metrics">
-        <Metric icon={<ClipboardList />} label="今日完成" value={`${daily?.tasks_done || 0}/${daily?.tasks_total || 0}`} />
-        <Metric icon={<Gauge />} label="月完成率" value={`${stats?.completion_rate || 0}%`} />
-        <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
+        <Metric icon={<ClipboardList />} label="今日进度" value={`${daily?.tasks_done || 0}/${daily?.tasks_total || 0}`} />
+        <Metric icon={<TimerReset />} label="专注时长" value={`${stats?.practice_minutes || 0}min`} />
         <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />
-        <Metric icon={<TimerReset />} label="刷题用时" value={`${stats?.practice_minutes || 0}min`} />
+        <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
       </div>
 
       <div className="workspace-grid">
         <section className="panel main-panel">
           <div className="panel-title">
-            <h2>今日计划</h2>
-            <span>{daily?.date || "尚未生成"}</span>
+            <h2>今日计划 <span>(Today)</span></h2>
+            <button className="soft-action" onClick={refresh}>
+              <RefreshCw size={17} /> 同步节奏
+            </button>
           </div>
           {loading && <div className="empty-state">正在读取今日节奏...</div>}
           {!loading && !daily && <div className="empty-state">还没有当前月份计划，先创建一个月计划。</div>}
@@ -403,6 +417,34 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
         </section>
 
         <aside className="side-stack">
+          <section className="panel goal-card">
+            <div className="panel-title">
+              <h2>{month}月月度目标</h2>
+              <span>On Track</span>
+            </div>
+            {currentPlan ? (
+              <>
+                <p>"{currentPlan.objective}"</p>
+                <div className="goal-progress">
+                  <div>
+                    <span>Time Ctrl Progress</span>
+                    <b>{stats?.completion_rate || 0}%</b>
+                  </div>
+                  <i><em style={{ width: `${Math.min(100, stats?.completion_rate || 0)}%` }} /></i>
+                </div>
+                <div className="goal-progress violet">
+                  <div>
+                    <span>Accuracy Goal</span>
+                    <b>{currentPlan.target_accuracy}%</b>
+                  </div>
+                  <i><em style={{ width: `${Math.min(100, currentPlan.target_accuracy || 0)}%` }} /></i>
+                </div>
+              </>
+            ) : (
+              <p>创建一个月计划后，这里会展示你的目标、进度与节奏控制。</p>
+            )}
+          </section>
+          <PlanComposer onCreated={refresh} toast={toast} />
           <section className="panel">
             <div className="panel-title">
               <h2>今日刷题标签</h2>
@@ -423,8 +465,7 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
               <div className="empty-state small">完成刷题任务后，这里会显示当天各标签的题量、正确率和用时。</div>
             )}
           </section>
-          <PlanComposer onCreated={refresh} toast={toast} />
-          <section className="panel">
+          <section className="panel weekly-card">
             <div className="panel-title">
               <h2>当前月计划</h2>
               <span>{plans.length} 个</span>
@@ -575,8 +616,8 @@ function TaskRow({
           <b>{task.title}</b>
           <span>{isPractice ? "刷题" : "事项"}</span>
           <span>{tagLabel}</span>
+          <span className="task-time">{task.planned_start || "--:--"} - {task.planned_end || "--:--"}</span>
         </span>
-        <span className="task-time">{task.planned_start || "--:--"} - {task.planned_end || "--:--"}</span>
         <ChevronRight className="task-disclosure" size={18} />
       </button>
       <div className="task-actions">
