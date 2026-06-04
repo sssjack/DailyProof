@@ -785,8 +785,8 @@ function StatsCenter() {
   }));
 
   return (
-    <main className="workspace">
-      <div className="page-head">
+    <main className="workspace analytics-workspace">
+      <div className="page-head analytics-head">
         <div>
           <p className="eyebrow">Visible progress</p>
           <h1>结果不会争辩，它只会显形。</h1>
@@ -796,7 +796,7 @@ function StatsCenter() {
           <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
         </div>
       </div>
-      <div className="metric-grid">
+      <div className="metric-grid analytics-metrics">
         <Metric icon={<ClipboardList />} label="任务完成" value={`${stats?.tasks_done || 0}/${stats?.tasks_total || 0}`} />
         <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
         <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />

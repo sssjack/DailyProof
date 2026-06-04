@@ -2267,3 +2267,285 @@ select {
     grid-row: auto;
   }
 }
+
+/* Dashboard and analytics scale tuning */
+.app-sidebar {
+  width: 248px;
+  gap: 26px;
+  padding: 28px 22px;
+}
+
+.app-sidebar ~ .workspace {
+  margin-left: 248px;
+  padding: clamp(28px, 3.2vw, 46px) clamp(24px, 3.4vw, 52px) 64px;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  font-size: 24px;
+}
+
+.brand-copy {
+  font-size: 21px;
+}
+
+.app-sidebar .topnav button {
+  min-height: 54px;
+  border-radius: 20px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+.app-sidebar .topnav svg,
+.topnav svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dashboard-head,
+.analytics-head {
+  min-height: auto;
+  margin-bottom: 24px;
+}
+
+.dashboard-head h1 {
+  max-width: 720px;
+  font-size: clamp(32px, 3.4vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.analytics-head h1 {
+  max-width: 760px;
+  font-size: clamp(28px, 2.6vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.15em;
+}
+
+.eyebrow span {
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.1);
+}
+
+.page-subtitle {
+  max-width: 620px;
+  margin-top: 14px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.date-card {
+  padding-top: 28px;
+}
+
+.date-card b {
+  font-size: clamp(24px, 2.4vw, 32px);
+}
+
+.date-card span {
+  font-size: 16px;
+}
+
+.metric-grid {
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+.dashboard-metrics,
+.analytics-metrics {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.metric {
+  min-height: 104px;
+  border-radius: 26px;
+  padding: 18px;
+}
+
+.metric:hover,
+.panel:hover,
+.task-row:hover {
+  transform: translateY(-2px);
+}
+
+.metric > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 13px;
+}
+
+.metric svg {
+  width: 15px;
+  height: 15px;
+}
+
+.metric p {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+
+.metric b {
+  font-size: clamp(24px, 2.4vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.panel {
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.panel-title {
+  margin-bottom: 18px;
+}
+
+.panel-title h2 {
+  font-size: clamp(22px, 1.6vw, 28px);
+  letter-spacing: -0.035em;
+}
+
+.workspace-grid {
+  grid-template-columns: minmax(620px, 1fr) 340px;
+  gap: 24px;
+}
+
+.side-stack {
+  gap: 18px;
+}
+
+.task-list {
+  gap: 14px;
+}
+
+.task-row {
+  grid-template-columns: 38px minmax(0, 1fr) 48px;
+  gap: 12px 14px;
+  border-radius: 26px;
+  padding: 20px;
+}
+
+.check-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.task-summary {
+  min-height: 48px;
+}
+
+.task-main b {
+  font-size: 17px;
+}
+
+.task-main span,
+.detail-meta span,
+.plan-mini span {
+  font-size: 12px;
+}
+
+.task-time {
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+}
+
+.icon-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.goal-card p {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.goal-progress div {
+  font-size: 13px;
+}
+
+.chart-panel {
+  min-height: 300px;
+}
+
+.chart-grid {
+  height: 190px;
+  gap: 5px;
+}
+
+.legend,
+.tag-row,
+.data-table {
+  font-size: 13px;
+}
+
+.tag-row {
+  min-height: 48px;
+}
+
+.total-stat .metric {
+  min-height: 96px;
+  padding: 16px;
+}
+
+.total-stat .metric > span {
+  width: 28px;
+  height: 28px;
+}
+
+.total-stat .metric b {
+  font-size: clamp(22px, 2vw, 28px);
+}
+
+@media (max-width: 1440px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-stack {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.86fr);
+  }
+}
+
+@media (max-width: 1120px) {
+  .app-sidebar {
+    width: auto;
+    padding: 14px 18px;
+  }
+
+  .app-sidebar ~ .workspace {
+    margin-left: 0;
+    padding: 24px 18px 56px;
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-head h1 {
+    font-size: 32px;
+  }
+
+  .analytics-head h1 {
+    font-size: 28px;
+  }
+
+  .metric {
+    min-height: 96px;
+    padding: 16px;
+  }
+
+  .task-row {
+    padding: 16px;
+  }
+}
