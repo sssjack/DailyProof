@@ -60,6 +60,15 @@ PRACTICE_CATEGORY_ORDER = [
     "political_theory",
     "common_sense",
 ]
+ISSUE_TAG_LABELS: dict[str, str] = {
+    "careless": "粗心",
+    "slow_calculation": "计算慢",
+    "misread": "审题错",
+    "formula": "公式不熟",
+    "time_control": "时间失控",
+    "knowledge_gap": "知识点不熟",
+    "state": "状态波动",
+}
 PRACTICE_TAGS = set(PRACTICE_TAG_LABELS)
 PRACTICE_TAG_ALIASES = {
     "judgment_reasoning": "judgement_reasoning",
@@ -848,15 +857,44 @@ def normalize_record_category(value: str) -> str:
     return tag
 
 
+def normalize_issue_tags(values: list[str] | None) -> list[str]:
+    tags: list[str] = []
+    for value in values or []:
+        tag = str(value or "").strip()
+        if tag in ISSUE_TAG_LABELS and tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def record_question_count(record: models.PracticeRecord) -> int:
+    return max(0, int(record.question_count or 0))
+
+
+def record_correct_count(record: models.PracticeRecord) -> int:
+    return min(record_question_count(record), max(0, int(record.correct_count or 0)))
+
+
+def record_accuracy(record: models.PracticeRecord) -> float:
+    questions = record_question_count(record)
+    if questions > 0:
+        return round(record_correct_count(record) * 100 / questions, 1)
+    return round(float(record.accuracy or 0), 1)
+
+
 def serialize_practice_record(record: models.PracticeRecord) -> dict:
     category = normalize_record_category(record.category)
+    issue_tags = normalize_issue_tags(record.issue_tags if isinstance(record.issue_tags, list) else [])
     return {
         "id": record.id,
         "date": record.record_date.isoformat(),
         "category": category,
         "label": PRACTICE_TAG_LABELS.get(category, category),
+        "question_count": record_question_count(record),
+        "correct_count": record_correct_count(record),
         "minutes": round(float(record.minutes or 0), 1),
-        "accuracy": round(float(record.accuracy or 0), 1),
+        "accuracy": record_accuracy(record),
+        "issue_tags": issue_tags,
+        "issue_labels": [ISSUE_TAG_LABELS[tag] for tag in issue_tags],
         "note": record.note or "",
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
@@ -882,16 +920,25 @@ def create_practice_record(
     user_id: int,
     record_date: date,
     category: str,
+    question_count: int,
+    correct_count: int,
     minutes: float,
-    accuracy: float,
+    accuracy: float | None,
+    issue_tags: list[str] | None,
     note: str,
 ) -> models.PracticeRecord:
+    questions = max(0, int(question_count or 0))
+    correct = min(questions, max(0, int(correct_count or 0)))
+    computed_accuracy = round(correct * 100 / questions, 1) if questions else round(float(accuracy or 0), 1)
     record = models.PracticeRecord(
         user_id=user_id,
         record_date=record_date,
         category=normalize_record_category(category),
+        question_count=questions,
+        correct_count=correct,
         minutes=round(max(0.0, float(minutes)), 1),
-        accuracy=round(max(0.0, min(100.0, float(accuracy))), 1),
+        accuracy=round(max(0.0, min(100.0, computed_accuracy)), 1),
+        issue_tags=normalize_issue_tags(issue_tags),
         note=(note or "").strip(),
     )
     db.add(record)
@@ -905,18 +952,32 @@ def update_practice_record(
     *,
     record_date: date | None = None,
     category: str | None = None,
+    question_count: int | None = None,
+    correct_count: int | None = None,
     minutes: float | None = None,
     accuracy: float | None = None,
+    issue_tags: list[str] | None = None,
     note: str | None = None,
 ) -> models.PracticeRecord:
     if record_date is not None:
         record.record_date = record_date
     if category is not None:
         record.category = normalize_record_category(category)
+    if question_count is not None:
+        record.question_count = max(0, int(question_count))
+    if correct_count is not None:
+        record.correct_count = max(0, int(correct_count))
+    record.correct_count = min(record_question_count(record), record_correct_count(record))
     if minutes is not None:
         record.minutes = round(max(0.0, float(minutes)), 1)
     if accuracy is not None:
         record.accuracy = round(max(0.0, min(100.0, float(accuracy))), 1)
+    if question_count is not None or correct_count is not None:
+        questions = record_question_count(record)
+        if questions > 0:
+            record.accuracy = round(record_correct_count(record) * 100 / questions, 1)
+    if issue_tags is not None:
+        record.issue_tags = normalize_issue_tags(issue_tags)
     if note is not None:
         record.note = note.strip()
     db.flush()
@@ -925,12 +986,31 @@ def update_practice_record(
 
 def summarize_practice_records(records: list[models.PracticeRecord]) -> dict:
     minutes = round(sum(float(record.minutes or 0) for record in records), 1)
-    accuracy = round(sum(float(record.accuracy or 0) for record in records) / len(records), 1) if records else None
+    question_count = sum(record_question_count(record) for record in records)
+    correct_count = sum(record_correct_count(record) for record in records)
+    if question_count > 0:
+        accuracy = round(correct_count * 100 / question_count, 1)
+    else:
+        accuracy = round(sum(record_accuracy(record) for record in records) / len(records), 1) if records else None
     return {
         "record_count": len(records),
+        "question_count": question_count,
+        "correct_count": correct_count,
         "minutes": minutes,
         "accuracy": accuracy,
     }
+
+
+def summarize_issue_tags(records: list[models.PracticeRecord]) -> list[dict]:
+    counts: dict[str, int] = {}
+    for record in records:
+        values = record.issue_tags if isinstance(record.issue_tags, list) else []
+        for tag in normalize_issue_tags(values):
+            counts[tag] = counts.get(tag, 0) + 1
+    return [
+        {"tag": tag, "label": ISSUE_TAG_LABELS[tag], "count": count}
+        for tag, count in sorted(counts.items(), key=lambda item: (-item[1], ISSUE_TAG_LABELS[item[0]]))
+    ]
 
 
 def weekly_record_periods(year: int, month: int) -> list[dict]:
@@ -1000,6 +1080,7 @@ def user_practice_record_stats(db: Session, user_id: int, *, scope: str, year: i
                 "start": period["start"].isoformat(),
                 "end": period["end"].isoformat(),
                 **summarize_practice_records(period_records),
+                "issue_summary": summarize_issue_tags(period_records),
                 "categories": category_map,
             }
         )
@@ -1013,6 +1094,7 @@ def user_practice_record_stats(db: Session, user_id: int, *, scope: str, year: i
                 "category": category,
                 "label": PRACTICE_TAG_LABELS[category],
                 **summary,
+                "issue_summary": summarize_issue_tags(category_records),
                 "trend": [
                     {
                         "period": row["period"],
@@ -1034,6 +1116,7 @@ def user_practice_record_stats(db: Session, user_id: int, *, scope: str, year: i
         "end": end.isoformat(),
         "categories": categories,
         "summary": summarize_practice_records(records),
+        "issue_summary": summarize_issue_tags(records),
         "category_summary": category_summary,
         "periods": period_rows,
         "records": [serialize_practice_record(record) for record in records],

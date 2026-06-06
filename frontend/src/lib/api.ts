@@ -152,8 +152,12 @@ export type PracticeRecord = {
   date: string;
   category: string;
   label: string;
+  question_count: number;
+  correct_count: number;
   minutes: number;
   accuracy: number;
+  issue_tags: string[];
+  issue_labels: string[];
   note: string;
   created_at: string | null;
   updated_at: string | null;
@@ -161,6 +165,8 @@ export type PracticeRecord = {
 
 export type PracticeRecordPeriodSummary = {
   record_count: number;
+  question_count: number;
+  correct_count: number;
   minutes: number;
   accuracy: number | null;
 };
@@ -175,6 +181,7 @@ export type PracticeRecordTrendPoint = PracticeRecordPeriodSummary & {
 export type PracticeRecordCategorySummary = PracticeRecordPeriodSummary & {
   category: string;
   label: string;
+  issue_summary: Array<{ tag: string; label: string; count: number }>;
   trend: PracticeRecordTrendPoint[];
 };
 
@@ -186,8 +193,9 @@ export type PracticeRecordStats = {
   end: string;
   categories: Array<{ category: string; label: string }>;
   summary: PracticeRecordPeriodSummary;
+  issue_summary: Array<{ tag: string; label: string; count: number }>;
   category_summary: PracticeRecordCategorySummary[];
-  periods: Array<PracticeRecordTrendPoint & { categories: Record<string, PracticeRecordPeriodSummary> }>;
+  periods: Array<PracticeRecordTrendPoint & { issue_summary: Array<{ tag: string; label: string; count: number }>; categories: Record<string, PracticeRecordPeriodSummary> }>;
   records: PracticeRecord[];
 };
 

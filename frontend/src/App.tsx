@@ -78,6 +78,15 @@ const recordCategories = [
 ];
 
 const recordColors = ["#6366f1", "#06b6d4", "#ec4899", "#22c55e", "#f59e0b", "#8b5cf6", "#64748b"];
+const issueTags = [
+  { tag: "careless", label: "粗心" },
+  { tag: "slow_calculation", label: "计算慢" },
+  { tag: "misread", label: "审题错" },
+  { tag: "formula", label: "公式不熟" },
+  { tag: "time_control", label: "时间失控" },
+  { tag: "knowledge_gap", label: "知识点不熟" },
+  { tag: "state", label: "状态波动" }
+];
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -723,10 +732,114 @@ function PracticeTrendChart({ title, points }: { title: string; points: Practice
 
 type RecordScope = "week" | "month";
 type RecordMetric = "minutes" | "accuracy";
+type AnalyticsMode = "tasks" | "records";
+type RecordInsight = {
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "attention" | "steady" | "lift";
+};
 
 function categoryColor(category: string) {
   const index = Math.max(0, recordCategories.findIndex((item) => item.category === category));
   return recordColors[index % recordColors.length];
+}
+
+function formatRecordAccuracy(value: number | null | undefined) {
+  return value === null || value === undefined ? "-" : `${value}%`;
+}
+
+function buildEmptyRecordCategories() {
+  return recordCategories.map((item) => ({
+    category: item.category,
+    label: item.label,
+    record_count: 0,
+    question_count: 0,
+    correct_count: 0,
+    minutes: 0,
+    accuracy: null,
+    issue_summary: [],
+    trend: []
+  }));
+}
+
+function buildRecordInsights(stats: PracticeRecordStats | null): RecordInsight[] {
+  if (!stats?.summary?.record_count) return [];
+
+  const activeCategories = stats.category_summary.filter((row) => row.record_count > 0);
+  const insights: RecordInsight[] = [];
+  const weakest = [...activeCategories]
+    .filter((row) => row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  if (weakest) {
+    const topIssue = weakest.issue_summary?.[0];
+    insights.push({
+      title: "优先补强",
+      value: `${weakest.label} ${formatRecordAccuracy(weakest.accuracy)}`,
+      detail: topIssue ? `主要错因是${topIssue.label}，先用 2-3 次专项复盘压低它。` : "当前加权正确率最低，适合下一轮做专项复盘。",
+      tone: "attention"
+    });
+  }
+
+  const slowest = [...activeCategories].sort((a, b) => Number(b.minutes || 0) - Number(a.minutes || 0))[0];
+  if (slowest?.minutes) {
+    insights.push({
+      title: "时间消耗",
+      value: `${slowest.label} ${slowest.minutes}min`,
+      detail: "这是当前统计周期里累计用时最高的板块，可以拆出限时训练和复盘两段。",
+      tone: "steady"
+    });
+  }
+
+  const trendRows = stats.periods.filter((row) => row.record_count > 0 && row.accuracy !== null);
+  if (trendRows.length >= 2) {
+    const latest = trendRows[trendRows.length - 1];
+    const previous = trendRows[trendRows.length - 2];
+    const delta = Math.round((Number(latest.accuracy) - Number(previous.accuracy)) * 10) / 10;
+    insights.push({
+      title: delta >= 0 ? "趋势提升" : "趋势回落",
+      value: `${delta >= 0 ? "+" : ""}${delta}%`,
+      detail: `${previous.label} 到 ${latest.label} 的加权正确率变化，适合作为本轮复盘的反馈。`,
+      tone: delta >= 0 ? "lift" : "attention"
+    });
+  }
+
+  const topIssue = stats.issue_summary?.[0];
+  if (topIssue) {
+    insights.push({
+      title: "高频错因",
+      value: topIssue.label,
+      detail: `本周期出现 ${topIssue.count} 次，建议在备注里继续细分题型和触发场景。`,
+      tone: "steady"
+    });
+  }
+
+  return insights.slice(0, 4);
+}
+
+function RecordInsightPanel({ stats }: { stats: PracticeRecordStats | null }) {
+  const insights = buildRecordInsights(stats);
+  return (
+    <section className="panel record-insight-panel">
+      <div className="panel-title">
+        <h2>弱项提示</h2>
+        <span>Auto review</span>
+      </div>
+      {insights.length ? (
+        <div className="record-insight-grid">
+          {insights.map((item) => (
+            <article className={`record-insight-card ${item.tone || "steady"}`} key={`${item.title}-${item.value}`}>
+              <span>{item.title}</span>
+              <b>{item.value}</b>
+              <p>{item.detail}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state small">记录几次题量、正确数和错因后，这里会自动给出优先复盘方向。</div>
+      )}
+    </section>
+  );
 }
 
 function buildRecordLinePath(points: Array<{ x: number; y: number | null }>) {
@@ -766,6 +879,8 @@ function RecordTrendChart({
     Math.ceil(Math.max(...series.flatMap((row) => row.trend.map((point) => Number(point.minutes || 0))), 0) / 10) * 10
   );
   const maxValue = metric === "accuracy" ? 100 : maxMinutes;
+  const targetValue = metric === "accuracy" ? 90 : 27;
+  const targetY = pad.top + (1 - Math.min(maxValue, targetValue) / maxValue) * plotHeight;
   const getX = (index: number) => pad.left + (periods.length <= 1 ? plotWidth / 2 : (index / (periods.length - 1)) * plotWidth);
   const getY = (value: number | null) => (value === null ? null : pad.top + (1 - Math.min(maxValue, Math.max(0, value)) / maxValue) * plotHeight);
   const visibleSeries = series.filter((row) => row.record_count > 0 || row.trend.some((point) => point.record_count > 0));
@@ -793,6 +908,10 @@ function RecordTrendChart({
                   y2={pad.top + plotHeight * ratio}
                 />
               ))}
+              <line className="record-target-line" x1={pad.left} y1={targetY} x2={chartWidth - pad.right} y2={targetY} />
+              <text className="record-target-label" x={chartWidth - pad.right - 8} y={targetY - 7}>
+                目标 {metric === "accuracy" ? "90%" : "27min"}
+              </text>
               <text className="record-y-label" x={8} y={pad.top + 5}>{metric === "accuracy" ? "100%" : `${maxValue}min`}</text>
               <text className="record-y-label" x={18} y={pad.top + plotHeight}>{metric === "accuracy" ? "0%" : "0min"}</text>
               {visibleSeries.map((row) => {
@@ -849,8 +968,10 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const [stats, setStats] = useState<PracticeRecordStats | null>(null);
   const [recordDate, setRecordDate] = useState(toDateKey(today));
   const [category, setCategory] = useState("verbal");
+  const [questionCount, setQuestionCount] = useState("");
+  const [correctCount, setCorrectCount] = useState("");
   const [minutes, setMinutes] = useState("");
-  const [accuracy, setAccuracy] = useState("");
+  const [selectedIssueTags, setSelectedIssueTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -864,19 +985,41 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
     refresh().catch((err) => toast(err instanceof Error ? err.message : "读取做题记录失败"));
   }, [scope, year, month]);
 
+  const parsedQuestionPreview = Number(questionCount);
+  const parsedCorrectPreview = Number(correctCount);
+  const computedAccuracy =
+    questionCount.trim() &&
+    correctCount.trim() &&
+    Number.isFinite(parsedQuestionPreview) &&
+    Number.isFinite(parsedCorrectPreview) &&
+    parsedQuestionPreview > 0 &&
+    parsedCorrectPreview >= 0 &&
+    parsedCorrectPreview <= parsedQuestionPreview
+      ? Math.round((parsedCorrectPreview * 1000) / parsedQuestionPreview) / 10
+      : null;
+
+  const toggleIssueTag = (tag: string) => {
+    setSelectedIssueTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
+  };
+
   const submit = async () => {
+    const parsedQuestionCount = Number(questionCount);
+    const parsedCorrectCount = Number(correctCount);
     const parsedMinutes = Number(minutes);
-    const parsedAccuracy = Number(accuracy);
     if (!recordDate) {
       toast("请选择记录日期");
       return;
     }
-    if (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0) {
-      toast("请填写有效用时");
+    if (!questionCount.trim() || !Number.isInteger(parsedQuestionCount) || parsedQuestionCount <= 0) {
+      toast("请填写有效题量");
       return;
     }
-    if (!Number.isFinite(parsedAccuracy) || parsedAccuracy < 0 || parsedAccuracy > 100) {
-      toast("请填写 0-100 的正确率");
+    if (!correctCount.trim() || !Number.isInteger(parsedCorrectCount) || parsedCorrectCount < 0 || parsedCorrectCount > parsedQuestionCount) {
+      toast("正确数不能超过题量");
+      return;
+    }
+    if (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0) {
+      toast("请填写有效用时");
       return;
     }
     setSaving(true);
@@ -886,13 +1029,17 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         body: JSON.stringify({
           record_date: recordDate,
           category,
+          question_count: parsedQuestionCount,
+          correct_count: parsedCorrectCount,
           minutes: Math.round(parsedMinutes * 10) / 10,
-          accuracy: Math.round(parsedAccuracy * 10) / 10,
+          issue_tags: selectedIssueTags,
           note
         })
       });
+      setQuestionCount("");
+      setCorrectCount("");
       setMinutes("");
-      setAccuracy("");
+      setSelectedIssueTags([]);
       setNote("");
       toast("做题记录已保存");
       await refresh();
@@ -916,7 +1063,8 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
 
   const records = stats?.records || [];
   const summary = stats?.summary;
-  const activeCategories = stats?.category_summary.filter((row) => row.record_count > 0).length || 0;
+  const categoryRows = stats?.category_summary || buildEmptyRecordCategories();
+  const activeCategories = categoryRows.filter((row) => row.record_count > 0).length;
 
   return (
     <main className="workspace records-workspace">
@@ -937,8 +1085,9 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
 
       <div className="metric-grid records-metrics">
         <Metric icon={<FilePenLine />} label="记录次数" value={`${summary?.record_count || 0}`} />
+        <Metric icon={<BookOpen />} label="累计题量" value={`${summary?.question_count || 0}`} />
         <Metric icon={<TimerReset />} label="累计用时" value={`${summary?.minutes || 0}min`} />
-        <Metric icon={<Gauge />} label="平均正确率" value={`${summary?.accuracy ?? 0}%`} />
+        <Metric icon={<Gauge />} label="加权正确率" value={formatRecordAccuracy(summary?.accuracy)} />
         <Metric icon={<BarChart3 />} label="覆盖板块" value={`${activeCategories}/7`} />
       </div>
 
@@ -962,13 +1111,44 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
               </select>
             </label>
             <label>
+              题量
+              <input type="number" min={1} step={1} value={questionCount} placeholder="20" onChange={(event) => setQuestionCount(event.target.value)} />
+            </label>
+            <label>
+              正确数
+              <input
+                type="number"
+                min={0}
+                max={questionCount || undefined}
+                step={1}
+                value={correctCount}
+                placeholder="17"
+                onChange={(event) => setCorrectCount(event.target.value)}
+              />
+            </label>
+            <label>
               用时 min
               <input type="number" min={0} step="0.1" value={minutes} placeholder="45" onChange={(event) => setMinutes(event.target.value)} />
             </label>
-            <label>
-              正确率 %
-              <input type="number" min={0} max={100} step="0.1" value={accuracy} placeholder="86" onChange={(event) => setAccuracy(event.target.value)} />
+            <label className="record-accuracy-preview">
+              自动正确率
+              <span className="record-form-preview">{computedAccuracy === null ? "--" : `${computedAccuracy}%`}</span>
             </label>
+            <div className="record-issue-field">
+              <span className="field-label">错因标签</span>
+              <div className="issue-chip-grid">
+                {issueTags.map((item) => (
+                  <button
+                    className={`issue-chip ${selectedIssueTags.includes(item.tag) ? "active" : ""}`}
+                    key={item.tag}
+                    type="button"
+                    onClick={() => toggleIssueTag(item.tag)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="record-note-field">
               备注
               <textarea value={note} rows={4} placeholder="错因、状态、题型或复盘重点" onChange={(event) => setNote(event.target.value)} />
@@ -991,10 +1171,17 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
                   <i style={{ background: categoryColor(record.category) }} />
                   <div>
                     <b>{record.label}</b>
-                    <span>{record.date}</span>
+                    <span>{record.date} · {record.question_count ? `${record.correct_count}/${record.question_count} 题` : "未记录题量"}</span>
                     {record.note && <p>{record.note}</p>}
+                    {record.issue_labels.length > 0 && (
+                      <div className="record-tags">
+                        {record.issue_labels.map((label) => (
+                          <span key={label}>{label}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <strong>{record.accuracy}%</strong>
+                  <strong>{formatRecordAccuracy(record.accuracy)}</strong>
                   <span>{record.minutes}min</span>
                   <button className="icon-btn" title="删除" onClick={() => deleteRecord(record)}>
                     <Trash2 size={16} />
@@ -1008,6 +1195,8 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         </section>
       </div>
 
+      <RecordInsightPanel stats={stats} />
+
       <div className="record-chart-grid">
         <RecordTrendChart title={scope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={stats} />
         <RecordTrendChart title={scope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={stats} />
@@ -1019,13 +1208,15 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
           <span>{scope === "week" ? `${year}年${month}月` : `${year}年`}</span>
         </div>
         <div className="record-category-grid">
-          {(stats?.category_summary || recordCategories.map((item) => ({ ...item, record_count: 0, minutes: 0, accuracy: null }))).map((row) => (
+          {categoryRows.map((row) => (
             <div className="record-category-card" key={row.category}>
               <i style={{ background: categoryColor(row.category) }} />
               <b>{row.label}</b>
               <span>{row.record_count} 次</span>
+              <span>{row.question_count} 题 · {row.correct_count} 对</span>
               <span>{row.minutes}min</span>
-              <strong>{row.accuracy ?? "-"}%</strong>
+              {row.issue_summary?.[0] && <span>高频：{row.issue_summary[0].label}</span>}
+              <strong>{formatRecordAccuracy(row.accuracy)}</strong>
             </div>
           ))}
         </div>
@@ -1302,10 +1493,19 @@ function StatsCenter() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [mode, setMode] = useState<AnalyticsMode>("tasks");
+  const [recordScope, setRecordScope] = useState<RecordScope>("week");
+  const [recordStats, setRecordStats] = useState<PracticeRecordStats | null>(null);
 
   useEffect(() => {
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats);
   }, [year, month]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ scope: recordScope, year: String(year) });
+    if (recordScope === "week") params.set("month", String(month));
+    api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`).then(setRecordStats);
+  }, [recordScope, year, month]);
 
   const daily = stats?.daily || [];
   const maxQuestions = Math.max(1, ...daily.map((day) => day.question_count || 0));
@@ -1322,6 +1522,9 @@ function StatsCenter() {
     accuracy: null,
     minutes: 0
   }));
+  const recordSummary = recordStats?.summary;
+  const recordCategoryRows = recordStats?.category_summary || buildEmptyRecordCategories();
+  const recordActiveCategories = recordCategoryRows.filter((row) => row.record_count > 0).length;
 
   return (
     <main className="workspace analytics-workspace">
@@ -1332,97 +1535,149 @@ function StatsCenter() {
         </div>
         <div className="date-controls">
           <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
-          <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
+          {(mode === "tasks" || recordScope === "week") && (
+            <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
+          )}
         </div>
       </div>
-      <div className="metric-grid analytics-metrics">
-        <Metric icon={<ClipboardList />} label="任务完成" value={`${stats?.tasks_done || 0}/${stats?.tasks_total || 0}`} />
-        <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
-        <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />
-        <Metric icon={<TimerReset />} label="月刷题用时" value={`${stats?.practice_minutes || 0}min`} />
-      </div>
-      <section className="panel chart-panel">
-        <div className="panel-title">
-          <h2>日趋势</h2>
-          <span>题量 / 正确率 / 用时</span>
+      <div className="analytics-toolbar">
+        <div className="segmented analytics-mode-switch">
+          <button className={mode === "tasks" ? "active" : ""} onClick={() => setMode("tasks")}>任务统计</button>
+          <button className={mode === "records" ? "active" : ""} onClick={() => setMode("records")}>做题记录</button>
         </div>
-        <div className="chart-grid triple-chart">
-          {daily.map((day) => (
-            <div
-              className="day-bar"
-              key={day.date}
-              aria-label={`${day.date} 题量 ${day.question_count || 0}，正确率 ${day.accuracy ?? "-"}%，用时 ${day.practice_minutes || 0}min`}
-            >
-              <i style={{ height: `${Math.round(((day.question_count || 0) / maxQuestions) * 100)}%` }} />
-              <em style={{ height: `${day.accuracy || 0}%` }} />
-              <b style={{ height: `${Math.round((Number(day.practice_minutes || 0) / maxMinutes) * 100)}%` }} />
-              <span>{Number(day.date.slice(-2))}</span>
-              <div className="trend-tooltip">
-                <strong>{day.date}</strong>
-                <p>题量：{day.question_count || 0} 题</p>
-                <p>正确率：{day.accuracy ?? "-"}%</p>
-                <p>用时：{day.practice_minutes || 0} min</p>
-                <p>完成率：{day.completion_rate}%</p>
-              </div>
+        {mode === "records" && (
+          <div className="segmented analytics-scope-switch">
+            <button className={recordScope === "week" ? "active" : ""} onClick={() => setRecordScope("week")}>按周</button>
+            <button className={recordScope === "month" ? "active" : ""} onClick={() => setRecordScope("month")}>按月</button>
+          </div>
+        )}
+      </div>
+
+      {mode === "records" ? (
+        <>
+          <div className="metric-grid analytics-metrics">
+            <Metric icon={<FilePenLine />} label="记录次数" value={`${recordSummary?.record_count || 0}`} />
+            <Metric icon={<BookOpen />} label="累计题量" value={`${recordSummary?.question_count || 0}`} />
+            <Metric icon={<Gauge />} label="加权正确率" value={formatRecordAccuracy(recordSummary?.accuracy)} />
+            <Metric icon={<BarChart3 />} label="覆盖板块" value={`${recordActiveCategories}/7`} />
+          </div>
+          <RecordInsightPanel stats={recordStats} />
+          <div className="record-chart-grid analytics-record-charts">
+            <RecordTrendChart title={recordScope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={recordStats} />
+            <RecordTrendChart title={recordScope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={recordStats} />
+          </div>
+          <section className="panel record-category-panel analytics-record-category">
+            <div className="panel-title">
+              <h2>记录板块表现</h2>
+              <span>{recordScope === "week" ? `${year}年${month}月` : `${year}年`}</span>
             </div>
-          ))}
-        </div>
-        <div className="legend">
-          <span><i className="volume" />题量</span>
-          <span><i className="accuracy" />正确率</span>
-          <span><i className="minutes" />用时</span>
-        </div>
-      </section>
-      <div className="attempt-trend-grid">
-        {trendGroups.map((group) => (
-          <PracticeTrendChart key={group.tag} title={group.title} points={group.points} />
-        ))}
-      </div>
-      <div className="stats-grid">
-        <section className="panel table-panel">
-          <div className="panel-title">
-            <h2>标签统计</h2>
-            <span>本月</span>
+            <div className="record-category-grid">
+              {recordCategoryRows.map((row) => (
+                <div className="record-category-card" key={row.category}>
+                  <i style={{ background: categoryColor(row.category) }} />
+                  <b>{row.label}</b>
+                  <span>{row.record_count} 次</span>
+                  <span>{row.question_count} 题 · {row.correct_count} 对</span>
+                  <span>{row.minutes}min</span>
+                  {row.issue_summary?.[0] && <span>高频：{row.issue_summary[0].label}</span>}
+                  <strong>{formatRecordAccuracy(row.accuracy)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <>
+          <div className="metric-grid analytics-metrics">
+            <Metric icon={<ClipboardList />} label="任务完成" value={`${stats?.tasks_done || 0}/${stats?.tasks_total || 0}`} />
+            <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
+            <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />
+            <Metric icon={<TimerReset />} label="月刷题用时" value={`${stats?.practice_minutes || 0}min`} />
           </div>
-          <div className="tag-stack">
-            {tagRows.map((row) => (
-              <div className="tag-row" key={row.tag}>
-                <b>{row.label}</b>
-                <span>{row.question_count} 题</span>
-                <span>{row.accuracy === null ? "-" : `${row.accuracy}%`}</span>
-                <span>{row.minutes}min</span>
-              </div>
+          <section className="panel chart-panel">
+            <div className="panel-title">
+              <h2>日趋势</h2>
+              <span>题量 / 正确率 / 用时</span>
+            </div>
+            <div className="chart-grid triple-chart">
+              {daily.map((day) => (
+                <div
+                  className="day-bar"
+                  key={day.date}
+                  aria-label={`${day.date} 题量 ${day.question_count || 0}，正确率 ${day.accuracy ?? "-"}%，用时 ${day.practice_minutes || 0}min`}
+                >
+                  <i style={{ height: `${Math.round(((day.question_count || 0) / maxQuestions) * 100)}%` }} />
+                  <em style={{ height: `${day.accuracy || 0}%` }} />
+                  <b style={{ height: `${Math.round((Number(day.practice_minutes || 0) / maxMinutes) * 100)}%` }} />
+                  <span>{Number(day.date.slice(-2))}</span>
+                  <div className="trend-tooltip">
+                    <strong>{day.date}</strong>
+                    <p>题量：{day.question_count || 0} 题</p>
+                    <p>正确率：{day.accuracy ?? "-"}%</p>
+                    <p>用时：{day.practice_minutes || 0} min</p>
+                    <p>完成率：{day.completion_rate}%</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="legend">
+              <span><i className="volume" />题量</span>
+              <span><i className="accuracy" />正确率</span>
+              <span><i className="minutes" />用时</span>
+            </div>
+          </section>
+          <div className="attempt-trend-grid">
+            {trendGroups.map((group) => (
+              <PracticeTrendChart key={group.tag} title={group.title} points={group.points} />
             ))}
           </div>
-        </section>
-        <section className="panel table-panel">
-          <div className="panel-title">
-            <h2>周统计</h2>
-            <span>{stats?.weekly?.length || 0} 周</span>
-          </div>
-          <div className="tag-stack">
-            {stats?.weekly?.map((row) => (
-              <div className="tag-row" key={row.week}>
-                <b>{row.week}</b>
-                <span>{row.question_count} 题</span>
-                <span>{row.accuracy === null ? "-" : `${row.accuracy}%`}</span>
-                <span>{row.practice_minutes}min</span>
+          <div className="stats-grid">
+            <section className="panel table-panel">
+              <div className="panel-title">
+                <h2>标签统计</h2>
+                <span>本月</span>
               </div>
-            ))}
+              <div className="tag-stack">
+                {tagRows.map((row) => (
+                  <div className="tag-row" key={row.tag}>
+                    <b>{row.label}</b>
+                    <span>{row.question_count} 题</span>
+                    <span>{row.accuracy === null ? "-" : `${row.accuracy}%`}</span>
+                    <span>{row.minutes}min</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="panel table-panel">
+              <div className="panel-title">
+                <h2>周统计</h2>
+                <span>{stats?.weekly?.length || 0} 周</span>
+              </div>
+              <div className="tag-stack">
+                {stats?.weekly?.map((row) => (
+                  <div className="tag-row" key={row.week}>
+                    <b>{row.week}</b>
+                    <span>{row.question_count} 题</span>
+                    <span>{row.accuracy === null ? "-" : `${row.accuracy}%`}</span>
+                    <span>{row.practice_minutes}min</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <section className="panel table-panel">
+              <div className="panel-title">
+                <h2>总统计</h2>
+                <span>全部历史</span>
+              </div>
+              <div className="total-stat">
+                <Metric icon={<TrendingUp />} label="累计题量" value={`${stats?.total?.question_total || 0}`} />
+                <Metric icon={<Gauge />} label="累计正确率" value={`${stats?.total?.avg_accuracy || 0}%`} />
+                <Metric icon={<TimerReset />} label="累计用时" value={`${stats?.total?.practice_minutes || 0}min`} />
+              </div>
+            </section>
           </div>
-        </section>
-        <section className="panel table-panel">
-          <div className="panel-title">
-            <h2>总统计</h2>
-            <span>全部历史</span>
-          </div>
-          <div className="total-stat">
-            <Metric icon={<TrendingUp />} label="累计题量" value={`${stats?.total?.question_total || 0}`} />
-            <Metric icon={<Gauge />} label="累计正确率" value={`${stats?.total?.avg_accuracy || 0}%`} />
-            <Metric icon={<TimerReset />} label="累计用时" value={`${stats?.total?.practice_minutes || 0}min`} />
-          </div>
-        </section>
-      </div>
+        </>
+      )}
     </main>
   );
 }

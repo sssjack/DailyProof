@@ -283,8 +283,11 @@ def add_practice_record(
             user_id=user.id,
             record_date=payload.record_date,
             category=payload.category,
+            question_count=payload.question_count,
+            correct_count=payload.correct_count,
             minutes=payload.minutes,
             accuracy=payload.accuracy,
+            issue_tags=payload.issue_tags,
             note=payload.note,
         )
     except ValueError as exc:
@@ -312,8 +315,11 @@ def patch_practice_record(
             record,
             record_date=payload.record_date,
             category=payload.category,
+            question_count=payload.question_count,
+            correct_count=payload.correct_count,
             minutes=payload.minutes,
             accuracy=payload.accuracy,
+            issue_tags=payload.issue_tags,
             note=payload.note,
         )
     except ValueError as exc:

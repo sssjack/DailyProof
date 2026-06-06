@@ -3641,7 +3641,27 @@ select {
 }
 
 .records-metrics {
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+}
+
+.analytics-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: -4px 0 14px;
+}
+
+.analytics-mode-switch {
+  width: min(340px, 100%);
+}
+
+.analytics-scope-switch {
+  width: 180px;
+}
+
+.analytics-record-charts {
+  margin-top: 16px;
 }
 
 .records-layout {
@@ -3658,8 +3678,55 @@ select {
 }
 
 .record-note-field,
+.record-issue-field,
 .record-submit {
   grid-column: 1 / -1;
+}
+
+.record-form-preview {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel-solid));
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.record-issue-field {
+  display: grid;
+  gap: 8px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.issue-chip-grid,
+.record-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.issue-chip {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 11px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-solid) 66%, transparent);
+}
+
+.issue-chip.active,
+.issue-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 
 .record-list {
@@ -3710,6 +3777,70 @@ select {
   font-size: 18px;
 }
 
+.record-tags {
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.record-tags span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.record-insight-panel {
+  margin-top: 16px;
+}
+
+.record-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.record-insight-card {
+  display: grid;
+  gap: 8px;
+  min-height: 126px;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--panel-solid) 58%, transparent);
+}
+
+.record-insight-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.record-insight-card b {
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.record-insight-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.record-insight-card.attention {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--danger) 10%, transparent), transparent 58%), color-mix(in srgb, var(--panel-solid) 58%, transparent);
+}
+
+.record-insight-card.lift {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 58%), color-mix(in srgb, var(--panel-solid) 58%, transparent);
+}
+
 .record-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3752,6 +3883,14 @@ select {
   stroke-width: 1;
 }
 
+.record-target-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--second) 72%, transparent);
+  stroke-width: 1.4;
+  stroke-dasharray: 7 7;
+  vector-effect: non-scaling-stroke;
+}
+
 .record-line {
   stroke-width: 2.7;
   stroke-linecap: round;
@@ -3765,10 +3904,16 @@ select {
 }
 
 .record-y-label,
-.record-x-label {
+.record-x-label,
+.record-target-label {
   fill: var(--muted);
   font-size: 11px;
   font-weight: 800;
+}
+
+.record-target-label {
+  fill: var(--second);
+  text-anchor: end;
 }
 
 .record-x-label {
@@ -3809,7 +3954,7 @@ select {
 .record-category-card {
   display: grid;
   gap: 7px;
-  min-height: 132px;
+  min-height: 152px;
   align-content: start;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -3844,12 +3989,26 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .record-insight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .record-category-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 820px) {
+  .analytics-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analytics-mode-switch,
+  .analytics-scope-switch {
+    width: 100%;
+  }
+
   .records-head {
     align-items: flex-start;
     flex-direction: column;
@@ -3863,6 +4022,7 @@ select {
 
   .records-metrics,
   .record-form,
+  .record-insight-grid,
   .record-category-grid {
     grid-template-columns: 1fr;
   }

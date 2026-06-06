@@ -79,6 +79,7 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     inspector = inspect(connection)
     task_columns = {column["name"] for column in inspector.get_columns("daily_tasks")}
     block_columns = {column["name"] for column in inspector.get_columns("plan_template_blocks")}
+    record_columns = {column["name"] for column in inspector.get_columns("practice_records")} if inspector.has_table("practice_records") else set()
 
     varchar = "VARCHAR(40)" if engine.dialect.name == "postgresql" else "VARCHAR(40)"
     float_type = "DOUBLE PRECISION" if engine.dialect.name == "postgresql" else "FLOAT"
@@ -98,6 +99,14 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
         connection.exec_driver_sql(f"ALTER TABLE daily_tasks ADD COLUMN result_accuracy {float_type}")
     if "result_minutes" not in task_columns:
         connection.exec_driver_sql(f"ALTER TABLE daily_tasks ADD COLUMN result_minutes {float_type}")
+
+    if record_columns:
+        if "question_count" not in record_columns:
+            connection.exec_driver_sql("ALTER TABLE practice_records ADD COLUMN question_count INTEGER DEFAULT 0")
+        if "correct_count" not in record_columns:
+            connection.exec_driver_sql("ALTER TABLE practice_records ADD COLUMN correct_count INTEGER DEFAULT 0")
+        if "issue_tags" not in record_columns:
+            connection.exec_driver_sql("ALTER TABLE practice_records ADD COLUMN issue_tags JSON DEFAULT '[]'")
 
     practice_categories = (
         "'data_analysis', 'quantitative', 'verbal', 'graphic_reasoning', "
