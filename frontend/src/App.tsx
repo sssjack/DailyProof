@@ -191,7 +191,7 @@ function TopBar({
             </button>
             <button className={view === "records" ? "active" : ""} onClick={() => setView("records")}>
               <FilePenLine size={20} />
-              <span>做题记录</span>
+              <span>Records</span>
             </button>
             <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
               <BarChart3 size={20} />
