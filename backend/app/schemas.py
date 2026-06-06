@@ -71,6 +71,22 @@ class CheckInRequest(BaseModel):
     note: str = ""
 
 
+class PracticeRecordCreate(BaseModel):
+    record_date: date
+    category: str = Field(min_length=1, max_length=40)
+    minutes: float = Field(ge=0, le=1440)
+    accuracy: float = Field(ge=0, le=100)
+    note: str = Field(default="", max_length=1000)
+
+
+class PracticeRecordPatch(BaseModel):
+    record_date: date | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=40)
+    minutes: float | None = Field(default=None, ge=0, le=1440)
+    accuracy: float | None = Field(default=None, ge=0, le=100)
+    note: str | None = Field(default=None, max_length=1000)
+
+
 class PracticeStartRequest(BaseModel):
     category: str = Field(default="data_analysis")
     question_count: int = Field(default=10, ge=1, le=30)

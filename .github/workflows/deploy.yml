@@ -1,0 +1,97 @@
+name: Deploy DailyProof
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DAILYPROOF_HOST: ${{ secrets.DAILYPROOF_HOST || '8.141.121.133' }}
+      DAILYPROOF_USER: ${{ secrets.DAILYPROOF_USER || 'root' }}
+      DAILYPROOF_REMOTE_DIR: ${{ secrets.DAILYPROOF_REMOTE_DIR || '/opt/dailyproof' }}
+      DAILYPROOF_BASE_URL: ${{ secrets.DAILYPROOF_BASE_URL || 'http://www.clockwise.asia/DailyProof' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Generate frontend_dist
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm ci
+          npm run build
+          cd ..
+          rm -rf frontend_dist
+          cp -R frontend/dist frontend_dist
+
+      - name: Package project
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.env' \
+            --exclude='data' \
+            --exclude='backend/data' \
+            --exclude='frontend/node_modules' \
+            --exclude='frontend/dist' \
+            --exclude='*.sqlite3' \
+            --exclude='*.sqlite3-*' \
+            --exclude='*.log' \
+            --exclude='*.tar.gz' \
+            -czf /tmp/dailyproof-deploy.tgz .
+
+      - name: Upload and deploy
+        env:
+          DAILYPROOF_SSH_KEY: ${{ secrets.DAILYPROOF_SSH_KEY }}
+          SSHPASS: ${{ secrets.DAILYPROOF_SSH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y openssh-client sshpass
+
+          ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          if [ -n "${DAILYPROOF_SSH_KEY:-}" ]; then
+            mkdir -p ~/.ssh
+            printf '%s\n' "$DAILYPROOF_SSH_KEY" > ~/.ssh/dailyproof
+            chmod 600 ~/.ssh/dailyproof
+            ssh_cmd="ssh $ssh_opts -i ~/.ssh/dailyproof"
+            scp_cmd="scp $ssh_opts -i ~/.ssh/dailyproof"
+          elif [ -n "${SSHPASS:-}" ]; then
+            ssh_cmd="sshpass -e ssh $ssh_opts"
+            scp_cmd="sshpass -e scp $ssh_opts"
+          else
+            echo "Set DAILYPROOF_SSH_KEY or DAILYPROOF_SSH_PASSWORD in GitHub Secrets." >&2
+            exit 1
+          fi
+
+          remote="${DAILYPROOF_USER}@${DAILYPROOF_HOST}"
+          $ssh_cmd "$remote" "mkdir -p /tmp/dailyproof-deploy"
+          $scp_cmd /tmp/dailyproof-deploy.tgz "$remote:/tmp/dailyproof-deploy/dailyproof-deploy.tgz"
+          $ssh_cmd "$remote" "
+            set -euo pipefail
+            ts=\$(date +%Y%m%d-%H%M%S)
+            if [ -d '$DAILYPROOF_REMOTE_DIR' ]; then
+              cp -a '$DAILYPROOF_REMOTE_DIR' '/opt/dailyproof.backup.'\"\$ts\"
+            fi
+            mkdir -p '$DAILYPROOF_REMOTE_DIR'
+            rm -rf '$DAILYPROOF_REMOTE_DIR/frontend_dist/assets'
+            tar -xzf /tmp/dailyproof-deploy/dailyproof-deploy.tgz -C '$DAILYPROOF_REMOTE_DIR'
+            cd '$DAILYPROOF_REMOTE_DIR'
+            docker compose up -d --build app
+            sleep 5
+            curl -fsS http://127.0.0.1:\${DAILYPROOF_PORT:-8091}/DailyProof/api/health
+            curl -fsS -o /dev/null '$DAILYPROOF_BASE_URL'
+          "

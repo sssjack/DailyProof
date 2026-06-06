@@ -51,6 +51,15 @@ PRACTICE_TAG_LABELS: dict[str, str] = {
     "political_theory": "政治理论",
     "common_sense": "常识",
 }
+PRACTICE_CATEGORY_ORDER = [
+    "verbal",
+    "graphic_reasoning",
+    "quantitative",
+    "data_analysis",
+    "judgement_reasoning",
+    "political_theory",
+    "common_sense",
+]
 PRACTICE_TAGS = set(PRACTICE_TAG_LABELS)
 PRACTICE_TAG_ALIASES = {
     "judgment_reasoning": "judgement_reasoning",
@@ -814,6 +823,223 @@ def practice_filter():
     return or_(models.DailyTask.task_type == "practice", models.DailyTask.category.in_(tuple(PRACTICE_TAGS)))
 
 
+def serialize_practice_trend_point(task: models.DailyTask, plan_date: date, sequence: int) -> dict:
+    tag = task_tag(task)
+    return {
+        "id": task.id,
+        "date": plan_date.isoformat(),
+        "title": task.title,
+        "tag": tag,
+        "label": PRACTICE_TAG_LABELS.get(tag, tag),
+        "sequence": sequence,
+        "question_count": max(0, int(task.result_question_count or 0)),
+        "accuracy": round(float(task.result_accuracy), 1) if task.result_accuracy is not None else None,
+        "minutes": task_result_minutes(task),
+        "target_minutes": task.target_minutes,
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "planned_start": format_time(task.planned_start),
+    }
+
+
+def normalize_record_category(value: str) -> str:
+    tag = normalize_practice_tag(value, value)
+    if tag not in PRACTICE_TAGS:
+        raise ValueError("invalid_practice_category")
+    return tag
+
+
+def serialize_practice_record(record: models.PracticeRecord) -> dict:
+    category = normalize_record_category(record.category)
+    return {
+        "id": record.id,
+        "date": record.record_date.isoformat(),
+        "category": category,
+        "label": PRACTICE_TAG_LABELS.get(category, category),
+        "minutes": round(float(record.minutes or 0), 1),
+        "accuracy": round(float(record.accuracy or 0), 1),
+        "note": record.note or "",
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+def practice_record_queryset(db: Session, user_id: int, start: date, end: date) -> list[models.PracticeRecord]:
+    return (
+        db.query(models.PracticeRecord)
+        .filter(
+            models.PracticeRecord.user_id == user_id,
+            models.PracticeRecord.record_date >= start,
+            models.PracticeRecord.record_date <= end,
+        )
+        .order_by(models.PracticeRecord.record_date.desc(), models.PracticeRecord.created_at.desc(), models.PracticeRecord.id.desc())
+        .all()
+    )
+
+
+def create_practice_record(
+    db: Session,
+    *,
+    user_id: int,
+    record_date: date,
+    category: str,
+    minutes: float,
+    accuracy: float,
+    note: str,
+) -> models.PracticeRecord:
+    record = models.PracticeRecord(
+        user_id=user_id,
+        record_date=record_date,
+        category=normalize_record_category(category),
+        minutes=round(max(0.0, float(minutes)), 1),
+        accuracy=round(max(0.0, min(100.0, float(accuracy))), 1),
+        note=(note or "").strip(),
+    )
+    db.add(record)
+    db.flush()
+    return record
+
+
+def update_practice_record(
+    db: Session,
+    record: models.PracticeRecord,
+    *,
+    record_date: date | None = None,
+    category: str | None = None,
+    minutes: float | None = None,
+    accuracy: float | None = None,
+    note: str | None = None,
+) -> models.PracticeRecord:
+    if record_date is not None:
+        record.record_date = record_date
+    if category is not None:
+        record.category = normalize_record_category(category)
+    if minutes is not None:
+        record.minutes = round(max(0.0, float(minutes)), 1)
+    if accuracy is not None:
+        record.accuracy = round(max(0.0, min(100.0, float(accuracy))), 1)
+    if note is not None:
+        record.note = note.strip()
+    db.flush()
+    return record
+
+
+def summarize_practice_records(records: list[models.PracticeRecord]) -> dict:
+    minutes = round(sum(float(record.minutes or 0) for record in records), 1)
+    accuracy = round(sum(float(record.accuracy or 0) for record in records) / len(records), 1) if records else None
+    return {
+        "record_count": len(records),
+        "minutes": minutes,
+        "accuracy": accuracy,
+    }
+
+
+def weekly_record_periods(year: int, month: int) -> list[dict]:
+    start, end = month_bounds(year, month)
+    periods = []
+    cursor = start
+    seen: set[tuple[int, int]] = set()
+    while cursor <= end:
+        iso_year, iso_week, _ = cursor.isocalendar()
+        key = (iso_year, iso_week)
+        if key not in seen:
+            seen.add(key)
+            week_start = cursor - timedelta(days=cursor.weekday())
+            week_end = week_start + timedelta(days=6)
+            periods.append(
+                {
+                    "key": f"{iso_year}-W{iso_week:02d}",
+                    "label": f"W{iso_week:02d}",
+                    "start": max(week_start, start),
+                    "end": min(week_end, end),
+                }
+            )
+        cursor += timedelta(days=1)
+    return periods
+
+
+def monthly_record_periods(year: int) -> list[dict]:
+    periods = []
+    for month in range(1, 13):
+        start, end = month_bounds(year, month)
+        periods.append(
+            {
+                "key": f"{year}-{month:02d}",
+                "label": f"{month}月",
+                "start": start,
+                "end": end,
+            }
+        )
+    return periods
+
+
+def user_practice_record_stats(db: Session, user_id: int, *, scope: str, year: int, month: int | None = None) -> dict:
+    normalized_scope = "month" if scope == "month" else "week"
+    periods = monthly_record_periods(year) if normalized_scope == "month" else weekly_record_periods(year, month or local_today().month)
+    start = periods[0]["start"]
+    end = periods[-1]["end"]
+    records = practice_record_queryset(db, user_id, start, end)
+    categories = [
+        {"category": category, "label": PRACTICE_TAG_LABELS[category]}
+        for category in PRACTICE_CATEGORY_ORDER
+    ]
+
+    def in_period(record: models.PracticeRecord, period: dict) -> bool:
+        return period["start"] <= record.record_date <= period["end"]
+
+    period_rows = []
+    for period in periods:
+        period_records = [record for record in records if in_period(record, period)]
+        category_map = {}
+        for category in PRACTICE_CATEGORY_ORDER:
+            items = [record for record in period_records if normalize_practice_tag(record.category, record.category) == category]
+            category_map[category] = summarize_practice_records(items)
+        period_rows.append(
+            {
+                "period": period["key"],
+                "label": period["label"],
+                "start": period["start"].isoformat(),
+                "end": period["end"].isoformat(),
+                **summarize_practice_records(period_records),
+                "categories": category_map,
+            }
+        )
+
+    category_summary = []
+    for category in PRACTICE_CATEGORY_ORDER:
+        category_records = [record for record in records if normalize_practice_tag(record.category, record.category) == category]
+        summary = summarize_practice_records(category_records)
+        category_summary.append(
+            {
+                "category": category,
+                "label": PRACTICE_TAG_LABELS[category],
+                **summary,
+                "trend": [
+                    {
+                        "period": row["period"],
+                        "label": row["label"],
+                        "start": row["start"],
+                        "end": row["end"],
+                        **row["categories"][category],
+                    }
+                    for row in period_rows
+                ],
+            }
+        )
+
+    return {
+        "scope": normalized_scope,
+        "year": year,
+        "month": month if normalized_scope == "week" else None,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "categories": categories,
+        "summary": summarize_practice_records(records),
+        "category_summary": category_summary,
+        "periods": period_rows,
+        "records": [serialize_practice_record(record) for record in records],
+    }
+
+
 def user_month_stats(db: Session, user_id: int, year: int, month: int) -> dict:
     start, end = month_bounds(year, month)
     plans = (
@@ -828,6 +1054,7 @@ def user_month_stats(db: Session, user_id: int, year: int, month: int) -> dict:
     tasks_done = 0
     study_seconds = 0
     month_practice_tasks: list[models.DailyTask] = []
+    practice_trends: dict[str, list[dict]] = {"data_analysis": [], "quantitative": []}
     cursor = start
     plan_map = {plan.plan_date: plan for plan in plans}
     while cursor <= end:
@@ -841,6 +1068,10 @@ def user_month_stats(db: Session, user_id: int, year: int, month: int) -> dict:
         study_seconds += seconds
         day_practice = [task for task in tasks if task.status == "done" and is_practice_task(task)]
         month_practice_tasks.extend(day_practice)
+        for task in sorted(day_practice, key=lambda item: (item.planned_start or time.min, item.sort_order, item.id)):
+            tag = task_tag(task)
+            if tag in practice_trends:
+                practice_trends[tag].append(serialize_practice_trend_point(task, cursor, len(practice_trends[tag]) + 1))
         day_stats = aggregate_practice(day_practice)
         daily.append(
             {
@@ -920,6 +1151,7 @@ def user_month_stats(db: Session, user_id: int, year: int, month: int) -> dict:
         "avg_practice_minutes": avg_result_minutes,
         "tag_summary": month_stats["tag_summary"],
         "weekly": weekly,
+        "practice_trends": practice_trends,
         "total": {
             "practice_task_count": total_stats["practice_task_count"],
             "question_total": total_stats["question_total"],

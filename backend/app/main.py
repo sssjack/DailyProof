@@ -15,6 +15,8 @@ from app.schemas import (
     CheckInRequest,
     LoginRequest,
     MonthlyPlanCreate,
+    PracticeRecordCreate,
+    PracticeRecordPatch,
     RegisterRequest,
     TaskPatch,
     TokenResponse,
@@ -35,6 +37,11 @@ from app.services import (
     user_admin_rows,
     user_month_stats,
     create_monthly_plan,
+    create_practice_record,
+    practice_record_queryset,
+    serialize_practice_record,
+    update_practice_record,
+    user_practice_record_stats,
 )
 from app.settings import settings
 from app.security import decode_access_token
@@ -243,6 +250,105 @@ def practice_stats(
     db: Session = Depends(get_db),
 ) -> dict:
     return user_month_stats(db, user.id, year, month)
+
+
+@app.get(f"{settings.api_path}/practice-records")
+def list_practice_records(
+    year: int,
+    month: int | None = None,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    if month is None:
+        start, end = date(year, 1, 1), date(year, 12, 31)
+    else:
+        from app.services import month_bounds
+
+        start, end = month_bounds(year, month)
+    return [serialize_practice_record(record) for record in practice_record_queryset(db, user.id, start, end)]
+
+
+post_record_exception_detail = "做题记录板块只能选择言语、图推、数量关系、资料分析、判断推理、政治理论或常识"
+
+
+@app.post(f"{settings.api_path}/practice-records")
+def add_practice_record(
+    payload: PracticeRecordCreate,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        record = create_practice_record(
+            db,
+            user_id=user.id,
+            record_date=payload.record_date,
+            category=payload.category,
+            minutes=payload.minutes,
+            accuracy=payload.accuracy,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        if str(exc) == "invalid_practice_category":
+            raise HTTPException(status_code=422, detail=post_record_exception_detail) from exc
+        raise
+    db.commit()
+    db.refresh(record)
+    return serialize_practice_record(record)
+
+
+@app.patch(f"{settings.api_path}/practice-records/{{record_id}}")
+def patch_practice_record(
+    record_id: int,
+    payload: PracticeRecordPatch,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    record = db.query(models.PracticeRecord).filter_by(id=record_id, user_id=user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="做题记录不存在")
+    try:
+        update_practice_record(
+            db,
+            record,
+            record_date=payload.record_date,
+            category=payload.category,
+            minutes=payload.minutes,
+            accuracy=payload.accuracy,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        if str(exc) == "invalid_practice_category":
+            raise HTTPException(status_code=422, detail=post_record_exception_detail) from exc
+        raise
+    db.commit()
+    db.refresh(record)
+    return serialize_practice_record(record)
+
+
+@app.delete(f"{settings.api_path}/practice-records/{{record_id}}")
+def delete_practice_record(
+    record_id: int,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    record = db.query(models.PracticeRecord).filter_by(id=record_id, user_id=user.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="做题记录不存在")
+    db.delete(record)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get(f"{settings.api_path}/practice-records/stats")
+def practice_record_stats(
+    scope: str = "week",
+    year: int | None = None,
+    month: int | None = None,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    today = local_today()
+    return user_practice_record_stats(db, user.id, scope=scope, year=year or today.year, month=month or today.month)
 
 
 @app.get(f"{settings.api_path}/admin/overview")

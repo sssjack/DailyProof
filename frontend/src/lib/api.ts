@@ -74,6 +74,7 @@ export type MonthlyStats = {
   avg_result_minutes: number;
   avg_practice_minutes: number;
   tag_summary: PracticeTagSummary[];
+  practice_trends?: Record<string, PracticeTrendPoint[]>;
   weekly: Array<{
     week: string;
     start: string;
@@ -105,6 +106,21 @@ export type MonthlyStats = {
   }>;
 };
 
+export type PracticeTrendPoint = {
+  id: number;
+  date: string;
+  title: string;
+  tag: string;
+  label: string;
+  sequence: number;
+  question_count: number;
+  accuracy: number | null;
+  minutes: number;
+  target_minutes: number | null;
+  completed_at: string | null;
+  planned_start: string | null;
+};
+
 export type PracticeTagSummary = {
   tag: string;
   label: string;
@@ -129,6 +145,50 @@ export type AdminResult = {
   duration_seconds: number;
   result_minutes: number;
   completed_at: string | null;
+};
+
+export type PracticeRecord = {
+  id: number;
+  date: string;
+  category: string;
+  label: string;
+  minutes: number;
+  accuracy: number;
+  note: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PracticeRecordPeriodSummary = {
+  record_count: number;
+  minutes: number;
+  accuracy: number | null;
+};
+
+export type PracticeRecordTrendPoint = PracticeRecordPeriodSummary & {
+  period: string;
+  label: string;
+  start: string;
+  end: string;
+};
+
+export type PracticeRecordCategorySummary = PracticeRecordPeriodSummary & {
+  category: string;
+  label: string;
+  trend: PracticeRecordTrendPoint[];
+};
+
+export type PracticeRecordStats = {
+  scope: "week" | "month";
+  year: number;
+  month: number | null;
+  start: string;
+  end: string;
+  categories: Array<{ category: string; label: string }>;
+  summary: PracticeRecordPeriodSummary;
+  category_summary: PracticeRecordCategorySummary[];
+  periods: Array<PracticeRecordTrendPoint & { categories: Record<string, PracticeRecordPeriodSummary> }>;
+  records: PracticeRecord[];
 };
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/DailyProof/api").replace(/\/$/, "");

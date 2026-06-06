@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  FilePenLine,
   Gauge,
   Home,
   LogOut,
@@ -20,6 +21,7 @@ import {
   Sun,
   TimerReset,
   TrendingUp,
+  Trash2,
   UserRound
 } from "lucide-react";
 import {
@@ -27,6 +29,10 @@ import {
   DailyPlan,
   MonthlyPlan,
   MonthlyStats,
+  PracticeRecord,
+  PracticeRecordStats,
+  PracticeRecordTrendPoint,
+  PracticeTrendPoint,
   Task,
   User,
   api,
@@ -38,7 +44,7 @@ import {
   setToken
 } from "./lib/api";
 
-type View = "home" | "dashboard" | "stats" | "calendar";
+type View = "home" | "dashboard" | "records" | "stats" | "calendar";
 type ThemeName = "night" | "dawn" | "pulse";
 type TaskPatchPayload = Partial<
   Pick<Task, "status" | "note" | "result_question_count" | "result_accuracy" | "result_minutes">
@@ -60,6 +66,18 @@ const practiceTags = [
   "political_theory",
   "common_sense"
 ];
+
+const recordCategories = [
+  { category: "verbal", label: "言语" },
+  { category: "graphic_reasoning", label: "图推" },
+  { category: "quantitative", label: "数量关系" },
+  { category: "data_analysis", label: "资料分析" },
+  { category: "judgement_reasoning", label: "判断推理" },
+  { category: "political_theory", label: "政治理论" },
+  { category: "common_sense", label: "常识" }
+];
+
+const recordColors = ["#6366f1", "#06b6d4", "#ec4899", "#22c55e", "#f59e0b", "#8b5cf6", "#64748b"];
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -108,11 +126,14 @@ function App() {
   return (
     <div className="app-shell" data-theme={theme}>
       <TopBar user={user} view={view} setView={setView} logout={logout} theme={theme} setTheme={setTheme} />
-      {view === "home" && <Landing onAuthed={onAuthed} />}
+      {view === "home" && <Landing user={user} onAuthed={onAuthed} onEnterApp={() => setView("dashboard")} onOpenAnalytics={() => setView("stats")} />}
       {user && view === "dashboard" && <Dashboard user={user} toast={setToast} />}
+      {user && view === "records" && <PracticeRecordsPage toast={setToast} />}
       {user && view === "stats" && <StatsCenter />}
       {user && view === "calendar" && <CalendarPage />}
-      {!user && view !== "home" && <Landing onAuthed={onAuthed} />}
+      {!user && view !== "home" && (
+        <Landing user={null} onAuthed={onAuthed} onEnterApp={() => setView("dashboard")} onOpenAnalytics={() => setView("stats")} />
+      )}
       {toast && (
         <button className="toast" onClick={() => setToast("")}>
           {toast}
@@ -154,6 +175,10 @@ function TopBar({
               <ClipboardList size={20} />
               <span>Dashboard</span>
             </button>
+            <button className={view === "records" ? "active" : ""} onClick={() => setView("records")}>
+              <FilePenLine size={20} />
+              <span>Records</span>
+            </button>
             <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
               <BarChart3 size={20} />
               <span>Analytics</span>
@@ -191,7 +216,17 @@ function TopBar({
   );
 }
 
-function Landing({ onAuthed }: { onAuthed: (user: User) => void }) {
+function Landing({
+  user,
+  onAuthed,
+  onEnterApp,
+  onOpenAnalytics
+}: {
+  user: User | null;
+  onAuthed: (user: User) => void;
+  onEnterApp: () => void;
+  onOpenAnalytics: () => void;
+}) {
   return (
     <main className="home-page">
       <section className="hero home-hero" style={{ backgroundImage: `var(--home-hero-overlay), url(${heroUrl})` }}>
@@ -218,7 +253,7 @@ function Landing({ onAuthed }: { onAuthed: (user: User) => void }) {
             <span><b>90%</b> 追踪正确率目标</span>
           </div>
         </div>
-        <AuthPanel onAuthed={onAuthed} />
+        {user ? <SignedInHomePanel user={user} onEnterApp={onEnterApp} onOpenAnalytics={onOpenAnalytics} /> : <AuthPanel onAuthed={onAuthed} />}
       </section>
 
       <section id="guide" className="guide-band home-guide">
@@ -242,6 +277,44 @@ function Landing({ onAuthed }: { onAuthed: (user: User) => void }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function SignedInHomePanel({
+  user,
+  onEnterApp,
+  onOpenAnalytics
+}: {
+  user: User;
+  onEnterApp: () => void;
+  onOpenAnalytics: () => void;
+}) {
+  return (
+    <aside className="auth-panel signed-home-panel">
+      <div className="signed-home-mark">
+        <span>D</span>
+        <div>
+          <b>欢迎回来</b>
+          <p>{user.name}</p>
+        </div>
+      </div>
+      <div className="signed-home-copy">
+        <h2>继续把今天变成证据。</h2>
+        <p>从今日任务开始，完成刷题后再回到 Analytics 看每次用时和正确率的变化。</p>
+      </div>
+      <div className="signed-home-actions">
+        <button className="primary-btn" onClick={onEnterApp}>
+          <ClipboardList size={18} /> 今日任务
+        </button>
+        <button className="ghost-btn" onClick={onOpenAnalytics}>
+          <BarChart3 size={18} /> 查看统计
+        </button>
+      </div>
+      <div className="signed-home-stats">
+        <span><b>27min</b> 单套目标</span>
+        <span><b>90%</b> 正确率目标</span>
+      </div>
+    </aside>
   );
 }
 
@@ -505,6 +578,434 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
       <p>{label}</p>
       <b>{value}</b>
     </div>
+  );
+}
+
+type ChartPoint = {
+  x: number;
+  y: number;
+  point: PracticeTrendPoint;
+};
+
+function buildLinePath(points: ChartPoint[]) {
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+}
+
+function PracticeTrendChart({ title, points }: { title: string; points: PracticeTrendPoint[] }) {
+  const chartWidth = 640;
+  const chartHeight = 260;
+  const pad = { top: 22, right: 58, bottom: 42, left: 48 };
+  const plotWidth = chartWidth - pad.left - pad.right;
+  const plotHeight = chartHeight - pad.top - pad.bottom;
+  const bottom = pad.top + plotHeight;
+  const targetMinutes = points.find((point) => point.target_minutes)?.target_minutes || null;
+  const maxMinutes = Math.max(
+    10,
+    Math.ceil(
+      points.reduce((max, point) => Math.max(max, Number(point.minutes || 0), Number(point.target_minutes || 0)), targetMinutes || 0) / 5
+    ) * 5
+  );
+  const getX = (index: number) => pad.left + (points.length <= 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+  const minutesPoints = points.map((point, index) => ({
+    x: getX(index),
+    y: pad.top + (1 - Math.min(maxMinutes, Number(point.minutes || 0)) / maxMinutes) * plotHeight,
+    point
+  }));
+  const accuracyPoints = points
+    .map((point, index) =>
+      point.accuracy === null
+        ? null
+        : {
+            x: getX(index),
+            y: pad.top + (1 - Math.min(100, Math.max(0, Number(point.accuracy))) / 100) * plotHeight,
+            point
+          }
+    )
+    .filter((point): point is ChartPoint => Boolean(point));
+  const tickEvery = Math.max(1, Math.ceil(points.length / 6));
+  const tickRows = points
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index === 0 || index === points.length - 1 || index % tickEvery === 0);
+  const targetMinutesY = targetMinutes ? pad.top + (1 - Math.min(maxMinutes, targetMinutes) / maxMinutes) * plotHeight : null;
+  const targetAccuracyY = pad.top + 0.1 * plotHeight;
+  const recentPoints = points.slice(-4);
+
+  return (
+    <section className="panel attempt-chart-panel">
+      <div className="panel-title">
+        <h2>{title}</h2>
+        <span>{points.length} 次记录</span>
+      </div>
+      {points.length ? (
+        <>
+          <div className="attempt-chart-wrap">
+            <svg className="attempt-line-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={`${title}每次用时和正确率折线统计图`}>
+              <line className="attempt-axis" x1={pad.left} y1={pad.top} x2={pad.left} y2={bottom} />
+              <line className="attempt-axis" x1={pad.left} y1={bottom} x2={chartWidth - pad.right} y2={bottom} />
+              <line className="attempt-grid-line" x1={pad.left} y1={pad.top} x2={chartWidth - pad.right} y2={pad.top} />
+              <line className="attempt-grid-line" x1={pad.left} y1={pad.top + plotHeight / 2} x2={chartWidth - pad.right} y2={pad.top + plotHeight / 2} />
+              {targetMinutesY !== null && (
+                <line className="attempt-target minutes-target" x1={pad.left} y1={targetMinutesY} x2={chartWidth - pad.right} y2={targetMinutesY} />
+              )}
+              <line className="attempt-target accuracy-target" x1={pad.left} y1={targetAccuracyY} x2={chartWidth - pad.right} y2={targetAccuracyY} />
+              <text className="attempt-y-label" x={10} y={pad.top + 5}>{maxMinutes}min</text>
+              <text className="attempt-y-label" x={18} y={bottom}>{0}min</text>
+              <text className="attempt-y-label right" x={chartWidth - 43} y={pad.top + 5}>100%</text>
+              <text className="attempt-y-label right" x={chartWidth - 33} y={bottom}>0%</text>
+              {targetMinutesY !== null && <text className="attempt-target-label minutes-label" x={pad.left + 8} y={targetMinutesY - 6}>{targetMinutes}min</text>}
+              <text className="attempt-target-label accuracy-label" x={chartWidth - pad.right - 42} y={targetAccuracyY - 6}>90%</text>
+              <path className="attempt-line minutes-line" d={buildLinePath(minutesPoints)} />
+              <path className="attempt-line accuracy-line" d={buildLinePath(accuracyPoints)} />
+              {minutesPoints.map(({ x, y, point }) => (
+                <circle className="attempt-dot minutes-dot" key={`minutes-${point.id}`} cx={x} cy={y} r={4.2}>
+                  <title>{`${point.date} 第 ${point.sequence} 次：用时 ${point.minutes}min，正确率 ${point.accuracy ?? "-"}%，${point.question_count} 题`}</title>
+                </circle>
+              ))}
+              {accuracyPoints.map(({ x, y, point }) => (
+                <circle className="attempt-dot accuracy-dot" key={`accuracy-${point.id}`} cx={x} cy={y} r={4.2}>
+                  <title>{`${point.date} 第 ${point.sequence} 次：正确率 ${point.accuracy ?? "-"}%，用时 ${point.minutes}min，${point.question_count} 题`}</title>
+                </circle>
+              ))}
+              {tickRows.map(({ point, index }) => (
+                <text className="attempt-x-label" key={`tick-${point.id}`} x={getX(index)} y={chartHeight - 15}>
+                  {point.sequence}
+                </text>
+              ))}
+            </svg>
+          </div>
+          <div className="legend attempt-legend">
+            <span><i className="minutes" />用时</span>
+            <span><i className="accuracy" />正确率</span>
+            <span><i className="target" />目标线</span>
+          </div>
+          <div className="attempt-mini-list">
+            {recentPoints.map((point) => (
+              <div className="attempt-mini-row" key={point.id}>
+                <b>#{point.sequence}</b>
+                <span>{point.date.slice(5)}</span>
+                <span>{point.minutes}min</span>
+                <span>{point.accuracy ?? "-"}%</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="empty-state small">{title}暂无完成记录，完成刷题任务后会显示每次趋势。</div>
+      )}
+    </section>
+  );
+}
+
+type RecordScope = "week" | "month";
+type RecordMetric = "minutes" | "accuracy";
+
+function categoryColor(category: string) {
+  const index = Math.max(0, recordCategories.findIndex((item) => item.category === category));
+  return recordColors[index % recordColors.length];
+}
+
+function buildRecordLinePath(points: Array<{ x: number; y: number | null }>) {
+  let drawing = false;
+  return points
+    .map((point) => {
+      if (point.y === null) {
+        drawing = false;
+        return "";
+      }
+      const command = drawing ? "L" : "M";
+      drawing = true;
+      return `${command} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+function RecordTrendChart({
+  title,
+  metric,
+  stats
+}: {
+  title: string;
+  metric: RecordMetric;
+  stats: PracticeRecordStats | null;
+}) {
+  const periods = stats?.periods || [];
+  const series = stats?.category_summary || [];
+  const chartWidth = 760;
+  const chartHeight = 280;
+  const pad = { top: 24, right: 28, bottom: 46, left: 54 };
+  const plotWidth = chartWidth - pad.left - pad.right;
+  const plotHeight = chartHeight - pad.top - pad.bottom;
+  const maxMinutes = Math.max(
+    30,
+    Math.ceil(Math.max(...series.flatMap((row) => row.trend.map((point) => Number(point.minutes || 0))), 0) / 10) * 10
+  );
+  const maxValue = metric === "accuracy" ? 100 : maxMinutes;
+  const getX = (index: number) => pad.left + (periods.length <= 1 ? plotWidth / 2 : (index / (periods.length - 1)) * plotWidth);
+  const getY = (value: number | null) => (value === null ? null : pad.top + (1 - Math.min(maxValue, Math.max(0, value)) / maxValue) * plotHeight);
+  const visibleSeries = series.filter((row) => row.record_count > 0 || row.trend.some((point) => point.record_count > 0));
+  const tickEvery = Math.max(1, Math.ceil(periods.length / 7));
+
+  return (
+    <section className="panel record-chart-panel">
+      <div className="panel-title">
+        <h2>{title}</h2>
+        <span>{metric === "accuracy" ? "正确率" : "用时"}趋势</span>
+      </div>
+      {visibleSeries.length ? (
+        <>
+          <div className="record-chart-wrap">
+            <svg className="record-line-chart" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={`${title}${metric === "accuracy" ? "正确率" : "用时"}趋势图`}>
+              <line className="record-axis" x1={pad.left} y1={pad.top} x2={pad.left} y2={pad.top + plotHeight} />
+              <line className="record-axis" x1={pad.left} y1={pad.top + plotHeight} x2={chartWidth - pad.right} y2={pad.top + plotHeight} />
+              {[0, 0.5, 1].map((ratio) => (
+                <line
+                  className="record-grid-line"
+                  key={ratio}
+                  x1={pad.left}
+                  y1={pad.top + plotHeight * ratio}
+                  x2={chartWidth - pad.right}
+                  y2={pad.top + plotHeight * ratio}
+                />
+              ))}
+              <text className="record-y-label" x={8} y={pad.top + 5}>{metric === "accuracy" ? "100%" : `${maxValue}min`}</text>
+              <text className="record-y-label" x={18} y={pad.top + plotHeight}>{metric === "accuracy" ? "0%" : "0min"}</text>
+              {visibleSeries.map((row) => {
+                const color = categoryColor(row.category);
+                const points = periods.map((period, index) => {
+                  const item = row.trend.find((point) => point.period === period.period);
+                  const value = metric === "accuracy" ? item?.accuracy ?? null : item?.minutes ?? 0;
+                  return { x: getX(index), y: getY(value), item };
+                });
+                return (
+                  <g key={row.category}>
+                    <path className="record-line" d={buildRecordLinePath(points)} style={{ stroke: color }} />
+                    {points
+                      .filter((point) => point.y !== null && (point.item?.record_count || 0) > 0)
+                      .map((point) => (
+                        <circle className="record-dot" key={`${row.category}-${point.item?.period}`} cx={point.x} cy={point.y || 0} r={3.8} style={{ stroke: color }}>
+                          <title>{`${row.label} ${point.item?.label}：用时 ${point.item?.minutes || 0}min，正确率 ${point.item?.accuracy ?? "-"}%，记录 ${point.item?.record_count || 0} 次`}</title>
+                        </circle>
+                      ))}
+                  </g>
+                );
+              })}
+              {periods
+                .map((period, index) => ({ period, index }))
+                .filter(({ index }) => index === 0 || index === periods.length - 1 || index % tickEvery === 0)
+                .map(({ period, index }) => (
+                  <text className="record-x-label" key={period.period} x={getX(index)} y={chartHeight - 16}>
+                    {period.label}
+                  </text>
+                ))}
+            </svg>
+          </div>
+          <div className="record-legend">
+            {visibleSeries.map((row) => (
+              <span key={row.category}>
+                <i style={{ background: categoryColor(row.category) }} />
+                {row.label}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="empty-state small">暂无记录，新增做题记录后这里会显示趋势。</div>
+      )}
+    </section>
+  );
+}
+
+function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
+  const today = new Date();
+  const [scope, setScope] = useState<RecordScope>("week");
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [stats, setStats] = useState<PracticeRecordStats | null>(null);
+  const [recordDate, setRecordDate] = useState(toDateKey(today));
+  const [category, setCategory] = useState("verbal");
+  const [minutes, setMinutes] = useState("");
+  const [accuracy, setAccuracy] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refresh = async () => {
+    const params = new URLSearchParams({ scope, year: String(year), month: String(month) });
+    const nextStats = await api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`);
+    setStats(nextStats);
+  };
+
+  useEffect(() => {
+    refresh().catch((err) => toast(err instanceof Error ? err.message : "读取做题记录失败"));
+  }, [scope, year, month]);
+
+  const submit = async () => {
+    const parsedMinutes = Number(minutes);
+    const parsedAccuracy = Number(accuracy);
+    if (!recordDate) {
+      toast("请选择记录日期");
+      return;
+    }
+    if (!Number.isFinite(parsedMinutes) || parsedMinutes <= 0) {
+      toast("请填写有效用时");
+      return;
+    }
+    if (!Number.isFinite(parsedAccuracy) || parsedAccuracy < 0 || parsedAccuracy > 100) {
+      toast("请填写 0-100 的正确率");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api<PracticeRecord>("/practice-records", {
+        method: "POST",
+        body: JSON.stringify({
+          record_date: recordDate,
+          category,
+          minutes: Math.round(parsedMinutes * 10) / 10,
+          accuracy: Math.round(parsedAccuracy * 10) / 10,
+          note
+        })
+      });
+      setMinutes("");
+      setAccuracy("");
+      setNote("");
+      toast("做题记录已保存");
+      await refresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "保存做题记录失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteRecord = async (record: PracticeRecord) => {
+    if (!window.confirm(`删除 ${record.date} 的${record.label}记录？`)) return;
+    try {
+      await api(`/practice-records/${record.id}`, { method: "DELETE" });
+      toast("记录已删除");
+      await refresh();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "删除失败");
+    }
+  };
+
+  const records = stats?.records || [];
+  const summary = stats?.summary;
+  const activeCategories = stats?.category_summary.filter((row) => row.record_count > 0).length || 0;
+
+  return (
+    <main className="workspace records-workspace">
+      <div className="page-head records-head">
+        <div>
+          <p className="eyebrow">Practice records</p>
+          <h1>把每一次做题，沉淀成可追踪的趋势。</h1>
+        </div>
+        <div className="record-scope-controls">
+          <div className="segmented">
+            <button className={scope === "week" ? "active" : ""} onClick={() => setScope("week")}>按周</button>
+            <button className={scope === "month" ? "active" : ""} onClick={() => setScope("month")}>按月</button>
+          </div>
+          <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
+          {scope === "week" && <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
+        </div>
+      </div>
+
+      <div className="metric-grid records-metrics">
+        <Metric icon={<FilePenLine />} label="记录次数" value={`${summary?.record_count || 0}`} />
+        <Metric icon={<TimerReset />} label="累计用时" value={`${summary?.minutes || 0}min`} />
+        <Metric icon={<Gauge />} label="平均正确率" value={`${summary?.accuracy ?? 0}%`} />
+        <Metric icon={<BarChart3 />} label="覆盖板块" value={`${activeCategories}/7`} />
+      </div>
+
+      <div className="records-layout">
+        <section className="panel record-form-panel">
+          <div className="panel-title">
+            <h2>新增记录</h2>
+            <span>Daily log</span>
+          </div>
+          <div className="record-form">
+            <label>
+              日期
+              <input type="date" value={recordDate} onChange={(event) => setRecordDate(event.target.value)} />
+            </label>
+            <label>
+              板块
+              <select value={category} onChange={(event) => setCategory(event.target.value)}>
+                {recordCategories.map((item) => (
+                  <option key={item.category} value={item.category}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              用时 min
+              <input type="number" min={0} step="0.1" value={minutes} placeholder="45" onChange={(event) => setMinutes(event.target.value)} />
+            </label>
+            <label>
+              正确率 %
+              <input type="number" min={0} max={100} step="0.1" value={accuracy} placeholder="86" onChange={(event) => setAccuracy(event.target.value)} />
+            </label>
+            <label className="record-note-field">
+              备注
+              <textarea value={note} rows={4} placeholder="错因、状态、题型或复盘重点" onChange={(event) => setNote(event.target.value)} />
+            </label>
+            <button className="primary-btn record-submit" onClick={submit} disabled={saving}>
+              <Plus size={18} /> {saving ? "保存中..." : "保存记录"}
+            </button>
+          </div>
+        </section>
+
+        <section className="panel record-table-panel">
+          <div className="panel-title">
+            <h2>近期记录</h2>
+            <span>{records.length} 条</span>
+          </div>
+          {records.length ? (
+            <div className="record-list">
+              {records.slice(0, 12).map((record) => (
+                <article className="record-row" key={record.id}>
+                  <i style={{ background: categoryColor(record.category) }} />
+                  <div>
+                    <b>{record.label}</b>
+                    <span>{record.date}</span>
+                    {record.note && <p>{record.note}</p>}
+                  </div>
+                  <strong>{record.accuracy}%</strong>
+                  <span>{record.minutes}min</span>
+                  <button className="icon-btn" title="删除" onClick={() => deleteRecord(record)}>
+                    <Trash2 size={16} />
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state small">还没有做题记录。先保存一条，趋势就会开始出现。</div>
+          )}
+        </section>
+      </div>
+
+      <div className="record-chart-grid">
+        <RecordTrendChart title={scope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={stats} />
+        <RecordTrendChart title={scope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={stats} />
+      </div>
+
+      <section className="panel record-category-panel">
+        <div className="panel-title">
+          <h2>板块表现</h2>
+          <span>{scope === "week" ? `${year}年${month}月` : `${year}年`}</span>
+        </div>
+        <div className="record-category-grid">
+          {(stats?.category_summary || recordCategories.map((item) => ({ ...item, record_count: 0, minutes: 0, accuracy: null }))).map((row) => (
+            <div className="record-category-card" key={row.category}>
+              <i style={{ background: categoryColor(row.category) }} />
+              <b>{row.label}</b>
+              <span>{row.record_count} 次</span>
+              <span>{row.minutes}min</span>
+              <strong>{row.accuracy ?? "-"}%</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
   );
 }
 
@@ -784,6 +1285,10 @@ function StatsCenter() {
   const daily = stats?.daily || [];
   const maxQuestions = Math.max(1, ...daily.map((day) => day.question_count || 0));
   const maxMinutes = Math.max(1, ...daily.map((day) => Number(day.practice_minutes || 0)));
+  const trendGroups = [
+    { tag: "data_analysis", title: "资料分析每次表现", points: stats?.practice_trends?.data_analysis || [] },
+    { tag: "quantitative", title: "数量关系每次表现", points: stats?.practice_trends?.quantitative || [] }
+  ];
   const tagRows = stats?.tag_summary?.length ? stats.tag_summary : practiceTags.map((tag) => ({
     tag,
     label: categoryLabel(tag),
@@ -843,6 +1348,11 @@ function StatsCenter() {
           <span><i className="minutes" />用时</span>
         </div>
       </section>
+      <div className="attempt-trend-grid">
+        {trendGroups.map((group) => (
+          <PracticeTrendChart key={group.tag} title={group.title} points={group.points} />
+        ))}
+      </div>
       <div className="stats-grid">
         <section className="panel table-panel">
           <div className="panel-title">
