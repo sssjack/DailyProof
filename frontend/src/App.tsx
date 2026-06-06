@@ -126,13 +126,27 @@ function App() {
   return (
     <div className="app-shell" data-theme={theme}>
       <TopBar user={user} view={view} setView={setView} logout={logout} theme={theme} setTheme={setTheme} />
-      {view === "home" && <Landing user={user} onAuthed={onAuthed} onEnterApp={() => setView("dashboard")} onOpenAnalytics={() => setView("stats")} />}
+      {view === "home" && (
+        <Landing
+          user={user}
+          onAuthed={onAuthed}
+          onEnterApp={() => setView("dashboard")}
+          onOpenRecords={() => setView("records")}
+          onOpenAnalytics={() => setView("stats")}
+        />
+      )}
       {user && view === "dashboard" && <Dashboard user={user} toast={setToast} />}
       {user && view === "records" && <PracticeRecordsPage toast={setToast} />}
       {user && view === "stats" && <StatsCenter />}
       {user && view === "calendar" && <CalendarPage />}
       {!user && view !== "home" && (
-        <Landing user={null} onAuthed={onAuthed} onEnterApp={() => setView("dashboard")} onOpenAnalytics={() => setView("stats")} />
+        <Landing
+          user={null}
+          onAuthed={onAuthed}
+          onEnterApp={() => setView("dashboard")}
+          onOpenRecords={() => setView("records")}
+          onOpenAnalytics={() => setView("stats")}
+        />
       )}
       {toast && (
         <button className="toast" onClick={() => setToast("")}>
@@ -177,7 +191,7 @@ function TopBar({
             </button>
             <button className={view === "records" ? "active" : ""} onClick={() => setView("records")}>
               <FilePenLine size={20} />
-              <span>Records</span>
+              <span>做题记录</span>
             </button>
             <button className={view === "stats" ? "active" : ""} onClick={() => setView("stats")}>
               <BarChart3 size={20} />
@@ -220,11 +234,13 @@ function Landing({
   user,
   onAuthed,
   onEnterApp,
+  onOpenRecords,
   onOpenAnalytics
 }: {
   user: User | null;
   onAuthed: (user: User) => void;
   onEnterApp: () => void;
+  onOpenRecords: () => void;
   onOpenAnalytics: () => void;
 }) {
   return (
@@ -253,7 +269,11 @@ function Landing({
             <span><b>90%</b> 追踪正确率目标</span>
           </div>
         </div>
-        {user ? <SignedInHomePanel user={user} onEnterApp={onEnterApp} onOpenAnalytics={onOpenAnalytics} /> : <AuthPanel onAuthed={onAuthed} />}
+        {user ? (
+          <SignedInHomePanel user={user} onEnterApp={onEnterApp} onOpenRecords={onOpenRecords} onOpenAnalytics={onOpenAnalytics} />
+        ) : (
+          <AuthPanel onAuthed={onAuthed} />
+        )}
       </section>
 
       <section id="guide" className="guide-band home-guide">
@@ -283,10 +303,12 @@ function Landing({
 function SignedInHomePanel({
   user,
   onEnterApp,
+  onOpenRecords,
   onOpenAnalytics
 }: {
   user: User;
   onEnterApp: () => void;
+  onOpenRecords: () => void;
   onOpenAnalytics: () => void;
 }) {
   return (
@@ -305,6 +327,9 @@ function SignedInHomePanel({
       <div className="signed-home-actions">
         <button className="primary-btn" onClick={onEnterApp}>
           <ClipboardList size={18} /> 今日任务
+        </button>
+        <button className="ghost-btn" onClick={onOpenRecords}>
+          <FilePenLine size={18} /> 做题记录
         </button>
         <button className="ghost-btn" onClick={onOpenAnalytics}>
           <BarChart3 size={18} /> 查看统计

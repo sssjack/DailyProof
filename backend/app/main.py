@@ -368,13 +368,14 @@ def admin_results(_: models.User = Depends(current_admin), db: Session = Depends
 
 DIST_DIR = Path(__file__).resolve().parents[2] / "frontend_dist"
 INDEX_FILE = DIST_DIR / "index.html"
+SPA_INDEX_HEADERS = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
 
 
 @app.get(settings.base_path)
 def spa_root() -> FileResponse:
     if not INDEX_FILE.exists():
         raise HTTPException(status_code=404, detail="frontend_dist not built")
-    return FileResponse(INDEX_FILE)
+    return FileResponse(INDEX_FILE, headers=SPA_INDEX_HEADERS)
 
 
 @app.get(f"{settings.base_path}/{{full_path:path}}")
@@ -386,4 +387,4 @@ def spa_fallback(full_path: str, request: Request) -> FileResponse:
         return FileResponse(candidate)
     if not INDEX_FILE.exists():
         raise HTTPException(status_code=404, detail="frontend_dist not built")
-    return FileResponse(INDEX_FILE)
+    return FileResponse(INDEX_FILE, headers=SPA_INDEX_HEADERS)
