@@ -350,11 +350,21 @@ def practice_record_stats(
     scope: str = "week",
     year: int | None = None,
     month: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     user: models.User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     today = local_today()
-    return user_practice_record_stats(db, user.id, scope=scope, year=year or today.year, month=month or today.month)
+    return user_practice_record_stats(
+        db,
+        user.id,
+        scope=scope,
+        year=year or today.year,
+        month=month or today.month,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 @app.get(f"{settings.api_path}/admin/overview")

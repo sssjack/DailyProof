@@ -33,6 +33,7 @@ import {
   MonthlyPlan,
   MonthlyStats,
   PracticeRecord,
+  PracticeRecordPeriodSummary,
   PracticeRecordStats,
   PracticeRecordTrendPoint,
   PracticeTrendPoint,
@@ -944,12 +945,34 @@ function PracticeTrendChart({ title, points }: { title: string; points: Practice
 type RecordScope = "week" | "month";
 type RecordMetric = "minutes" | "accuracy";
 type AnalyticsMode = "tasks" | "records";
+type RecordRangePreset = "this_week" | "last_week" | "this_month" | "last_month" | "last_30" | "last_90" | "custom";
 type RecordInsight = {
   title: string;
   value: string;
   detail: string;
   tone?: "attention" | "steady" | "lift";
 };
+type RecordRange = {
+  label: string;
+  start: string;
+  end: string;
+};
+type TrendAlert = {
+  title: string;
+  value: string;
+  detail: string;
+  tone?: "attention" | "steady" | "lift";
+};
+
+const recordRangeOptions: Array<{ value: RecordRangePreset; label: string }> = [
+  { value: "this_week", label: "本周" },
+  { value: "last_week", label: "上周" },
+  { value: "this_month", label: "本月" },
+  { value: "last_month", label: "上月" },
+  { value: "last_30", label: "近 30 天" },
+  { value: "last_90", label: "近 90 天" },
+  { value: "custom", label: "自定义" }
+];
 
 function categoryColor(category: string) {
   const index = Math.max(0, recordCategories.findIndex((item) => item.category === category));
@@ -972,6 +995,82 @@ function buildEmptyRecordCategories() {
     issue_summary: [],
     trend: []
   }));
+}
+
+function dateFromKey(value: string) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(value: Date, months: number) {
+  const next = new Date(value);
+  next.setMonth(next.getMonth() + months, 1);
+  return next;
+}
+
+function startOfWeek(value: Date) {
+  const next = new Date(value);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
+function endOfWeek(value: Date) {
+  return addDays(startOfWeek(value), 6);
+}
+
+function startOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), 1);
+}
+
+function endOfMonth(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth() + 1, 0);
+}
+
+function resolveRecordRange(preset: RecordRangePreset, customStart: string, customEnd: string, today: Date): RecordRange {
+  if (preset === "custom") {
+    const start = customStart <= customEnd ? customStart : customEnd;
+    const end = customStart <= customEnd ? customEnd : customStart;
+    return { label: `${start} 至 ${end}`, start, end };
+  }
+  if (preset === "this_week") {
+    return { label: "本周", start: toDateKey(startOfWeek(today)), end: toDateKey(endOfWeek(today)) };
+  }
+  if (preset === "last_week") {
+    const lastWeek = addDays(startOfWeek(today), -7);
+    return { label: "上周", start: toDateKey(lastWeek), end: toDateKey(addDays(lastWeek, 6)) };
+  }
+  if (preset === "this_month") {
+    return { label: "本月", start: toDateKey(startOfMonth(today)), end: toDateKey(endOfMonth(today)) };
+  }
+  if (preset === "last_month") {
+    const lastMonth = addMonths(startOfMonth(today), -1);
+    return { label: "上月", start: toDateKey(lastMonth), end: toDateKey(endOfMonth(lastMonth)) };
+  }
+  const days = preset === "last_90" ? 89 : 29;
+  return { label: preset === "last_90" ? "近 90 天" : "近 30 天", start: toDateKey(addDays(today, -days)), end: toDateKey(today) };
+}
+
+function comparisonDelta(current: number | null | undefined, previous: number | null | undefined, suffix = "") {
+  if (current === null || current === undefined || previous === null || previous === undefined) return "-";
+  const delta = Math.round((Number(current) - Number(previous)) * 10) / 10;
+  return `${delta >= 0 ? "+" : ""}${delta}${suffix}`;
+}
+
+function comparisonTone(current: number | null | undefined, previous: number | null | undefined, lowerIsBetter = false) {
+  if (current === null || current === undefined || previous === null || previous === undefined || Number(current) === Number(previous)) return "neutral";
+  const improved = lowerIsBetter ? Number(current) < Number(previous) : Number(current) > Number(previous);
+  return improved ? "positive" : "negative";
+}
+
+function efficiencyFromSummary(summary: PracticeRecordPeriodSummary | undefined) {
+  if (!summary?.minutes) return null;
+  return Math.round((Number(summary.correct_count || 0) / Number(summary.minutes || 1)) * 100) / 100;
 }
 
 function buildRecordInsights(stats: PracticeRecordStats | null): RecordInsight[] {
@@ -1049,6 +1148,182 @@ function RecordInsightPanel({ stats }: { stats: PracticeRecordStats | null }) {
       ) : (
         <div className="empty-state small">记录几次题量、正确数和错因后，这里会自动给出优先复盘方向。</div>
       )}
+    </section>
+  );
+}
+
+function buildTrendAlerts(stats: PracticeRecordStats | null): TrendAlert[] {
+  if (!stats?.summary.record_count) {
+    return [
+      {
+        title: "样本不足",
+        value: "暂无记录",
+        detail: "当前范围还没有做题记录，先记录 3 次以上后再判断趋势。",
+        tone: "steady"
+      }
+    ];
+  }
+  const alerts: TrendAlert[] = [];
+  const records = stats.records;
+  if (stats.summary.record_count < 3) {
+    alerts.push({
+      title: "样本偏少",
+      value: `${stats.summary.record_count} 次`,
+      detail: "当前范围记录少于 3 次，趋势判断仅作提示，建议继续补充样本。",
+      tone: "steady"
+    });
+  }
+
+  const latestThree = records.slice(0, 3);
+  if (latestThree.length >= 3 && latestThree[0].accuracy < latestThree[1].accuracy && latestThree[1].accuracy < latestThree[2].accuracy) {
+    alerts.push({
+      title: "连续下滑",
+      value: `${latestThree[2].accuracy}% → ${latestThree[0].accuracy}%`,
+      detail: "最近 3 次正确率连续下降，建议暂停加量，先复盘错因和题型。",
+      tone: "attention"
+    });
+  }
+
+  const latest = records[0];
+  const baseline = records.slice(1, 8);
+  if (latest && baseline.length >= 3) {
+    const avgMinutes = baseline.reduce((sum, record) => sum + Number(record.minutes || 0), 0) / baseline.length;
+    if (avgMinutes > 0 && latest.minutes > avgMinutes * 1.35 && latest.minutes - avgMinutes >= 5) {
+      alerts.push({
+        title: "用时异常",
+        value: `${latest.minutes}min`,
+        detail: `${latest.label} 最新一次用时显著高于近几次均值，可能需要拆分限时训练。`,
+        tone: "attention"
+      });
+    }
+  }
+
+  const activePeriods = stats.periods.filter((period) => period.record_count > 0 && period.accuracy !== null);
+  const currentPeriod = activePeriods[activePeriods.length - 1];
+  const previousPeriod = activePeriods[activePeriods.length - 2];
+  if (currentPeriod && previousPeriod) {
+    const delta = Math.round((Number(currentPeriod.accuracy) - Number(previousPeriod.accuracy)) * 10) / 10;
+    if (delta <= -5) {
+      alerts.push({
+        title: "周期回落",
+        value: `${delta}%`,
+        detail: `${previousPeriod.label} 到 ${currentPeriod.label} 正确率明显下降，建议查看该周期记录明细。`,
+        tone: "attention"
+      });
+    } else if (delta >= 5) {
+      alerts.push({
+        title: "趋势改善",
+        value: `+${delta}%`,
+        detail: `${previousPeriod.label} 到 ${currentPeriod.label} 正确率明显提升，可以保留当前训练节奏。`,
+        tone: "lift"
+      });
+    }
+  }
+
+  const topIssue = stats.issue_summary?.[0];
+  if (topIssue && topIssue.count >= Math.max(3, Math.ceil(stats.summary.record_count * 0.35))) {
+    alerts.push({
+      title: "错因集中",
+      value: topIssue.label,
+      detail: `${topIssue.label} 在当前范围出现 ${topIssue.count} 次，建议单独做一次错因复盘。`,
+      tone: "attention"
+    });
+  }
+
+  const weakest = stats.category_summary
+    .filter((row) => row.record_count >= 2 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  if (weakest && Number(weakest.accuracy) < 75) {
+    alerts.push({
+      title: "低位板块",
+      value: `${weakest.label} ${weakest.accuracy}%`,
+      detail: "该板块正确率低于 75%，适合先做基础题型归纳，再做限时训练。",
+      tone: "attention"
+    });
+  }
+
+  if (!alerts.length) {
+    alerts.push({
+      title: "趋势稳定",
+      value: "无明显异常",
+      detail: "当前范围没有检测到连续下滑、用时突增或错因异常集中。",
+      tone: "lift"
+    });
+  }
+  return alerts.slice(0, 4);
+}
+
+function TrendAlertPanel({ stats }: { stats: PracticeRecordStats | null }) {
+  const alerts = buildTrendAlerts(stats);
+  return (
+    <section className="panel trend-alert-panel">
+      <div className="panel-title">
+        <h2>异常检测与趋势提醒</h2>
+        <span>Anomaly scan</span>
+      </div>
+      <div className="trend-alert-grid">
+        {alerts.map((alert) => (
+          <article className={`trend-alert-card ${alert.tone || "steady"}`} key={`${alert.title}-${alert.value}`}>
+            <span>{alert.title}</span>
+            <b>{alert.value}</b>
+            <p>{alert.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ComparisonPanel({
+  weekCurrent,
+  weekPrevious,
+  monthCurrent,
+  monthPrevious
+}: {
+  weekCurrent: PracticeRecordStats | null;
+  weekPrevious: PracticeRecordStats | null;
+  monthCurrent: PracticeRecordStats | null;
+  monthPrevious: PracticeRecordStats | null;
+}) {
+  const comparisons = [
+    { title: "本周 vs 上周", current: weekCurrent, previous: weekPrevious },
+    { title: "本月 vs 上月", current: monthCurrent, previous: monthPrevious }
+  ];
+  return (
+    <section className="panel comparison-panel">
+      <div className="panel-title">
+        <h2>环比对比</h2>
+        <span>Week / Month</span>
+      </div>
+      <div className="comparison-grid">
+        {comparisons.map(({ title, current, previous }) => {
+          const currentSummary = current?.summary;
+          const previousSummary = previous?.summary;
+          const currentEfficiency = efficiencyFromSummary(currentSummary);
+          const previousEfficiency = efficiencyFromSummary(previousSummary);
+          return (
+            <article className="comparison-card" key={title}>
+              <div>
+                <span>{title}</span>
+                <b>{formatRecordAccuracy(currentSummary?.accuracy)}</b>
+                <em className={comparisonTone(currentSummary?.accuracy, previousSummary?.accuracy)}>
+                  {comparisonDelta(currentSummary?.accuracy, previousSummary?.accuracy, "%")}
+                </em>
+              </div>
+              <dl>
+                <dt>记录</dt>
+                <dd>{currentSummary?.record_count || 0} 次 <i className={comparisonTone(currentSummary?.record_count, previousSummary?.record_count)}>{comparisonDelta(currentSummary?.record_count, previousSummary?.record_count)}</i></dd>
+                <dt>题量</dt>
+                <dd>{currentSummary?.question_count || 0} 题 <i className={comparisonTone(currentSummary?.question_count, previousSummary?.question_count)}>{comparisonDelta(currentSummary?.question_count, previousSummary?.question_count)}</i></dd>
+                <dt>用时</dt>
+                <dd>{currentSummary?.minutes || 0}min <i className={comparisonTone(currentSummary?.minutes, previousSummary?.minutes, true)}>{comparisonDelta(currentSummary?.minutes, previousSummary?.minutes, "min")}</i></dd>
+                <dt>效率</dt>
+                <dd>{currentEfficiency ?? "-"} 对/min <i className={comparisonTone(currentEfficiency, previousEfficiency)}>{comparisonDelta(currentEfficiency, previousEfficiency)}</i></dd>
+              </dl>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -1740,18 +2015,48 @@ function StatsCenter() {
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [mode, setMode] = useState<AnalyticsMode>("tasks");
-  const [recordScope, setRecordScope] = useState<RecordScope>("week");
+  const [recordRangePreset, setRecordRangePreset] = useState<RecordRangePreset>("this_week");
+  const [customStart, setCustomStart] = useState(toDateKey(addDays(today, -29)));
+  const [customEnd, setCustomEnd] = useState(toDateKey(today));
   const [recordStats, setRecordStats] = useState<PracticeRecordStats | null>(null);
+  const [weekCurrentStats, setWeekCurrentStats] = useState<PracticeRecordStats | null>(null);
+  const [weekPreviousStats, setWeekPreviousStats] = useState<PracticeRecordStats | null>(null);
+  const [monthCurrentStats, setMonthCurrentStats] = useState<PracticeRecordStats | null>(null);
+  const [monthPreviousStats, setMonthPreviousStats] = useState<PracticeRecordStats | null>(null);
+  const selectedRecordRange = resolveRecordRange(recordRangePreset, customStart, customEnd, today);
 
   useEffect(() => {
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats);
   }, [year, month]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ scope: recordScope, year: String(year) });
-    if (recordScope === "week") params.set("month", String(month));
+    const params = new URLSearchParams({
+      scope: "range",
+      year: String(year),
+      start_date: selectedRecordRange.start,
+      end_date: selectedRecordRange.end
+    });
     api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`).then(setRecordStats);
-  }, [recordScope, year, month]);
+  }, [selectedRecordRange.start, selectedRecordRange.end, year]);
+
+  useEffect(() => {
+    const thisWeek = resolveRecordRange("this_week", customStart, customEnd, today);
+    const lastWeek = resolveRecordRange("last_week", customStart, customEnd, today);
+    const thisMonth = resolveRecordRange("this_month", customStart, customEnd, today);
+    const lastMonth = resolveRecordRange("last_month", customStart, customEnd, today);
+    const fetchRange = (range: RecordRange) => {
+      const params = new URLSearchParams({ scope: "range", year: String(year), start_date: range.start, end_date: range.end });
+      return api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`);
+    };
+    Promise.all([fetchRange(thisWeek), fetchRange(lastWeek), fetchRange(thisMonth), fetchRange(lastMonth)])
+      .then(([thisWeekStats, lastWeekStats, thisMonthStats, lastMonthStats]) => {
+        setWeekCurrentStats(thisWeekStats);
+        setWeekPreviousStats(lastWeekStats);
+        setMonthCurrentStats(thisMonthStats);
+        setMonthPreviousStats(lastMonthStats);
+      })
+      .catch(() => undefined);
+  }, [year]);
 
   const daily = stats?.daily || [];
   const maxQuestions = Math.max(1, ...daily.map((day) => day.question_count || 0));
@@ -1782,10 +2087,13 @@ function StatsCenter() {
           <h1>结果不会争辩，它只会显形。</h1>
         </div>
         <div className="date-controls">
-          <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
-          {(mode === "tasks" || recordScope === "week") && (
-            <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
+          {mode === "tasks" && (
+            <>
+              <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
+              <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />
+            </>
           )}
+          {mode === "records" && <span className="range-summary-chip">{selectedRecordRange.start} 至 {selectedRecordRange.end}</span>}
         </div>
       </div>
       <div className="analytics-toolbar">
@@ -1794,9 +2102,19 @@ function StatsCenter() {
           <button className={mode === "records" ? "active" : ""} onClick={() => setMode("records")}>做题记录</button>
         </div>
         {mode === "records" && (
-          <div className="segmented analytics-scope-switch">
-            <button className={recordScope === "week" ? "active" : ""} onClick={() => setRecordScope("week")}>按周</button>
-            <button className={recordScope === "month" ? "active" : ""} onClick={() => setRecordScope("month")}>按月</button>
+          <div className="record-range-filter">
+            <span className="record-range-label">时间范围</span>
+            <select aria-label="时间范围" value={recordRangePreset} onChange={(event) => setRecordRangePreset(event.target.value as RecordRangePreset)}>
+              {recordRangeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {recordRangePreset === "custom" && (
+              <>
+                <input aria-label="开始日期" type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} />
+                <input aria-label="结束日期" type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} />
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1812,16 +2130,23 @@ function StatsCenter() {
             <Metric icon={<Brain />} label="效率" value={`${recordSignals.efficiency ?? "-"}对/min`} />
             <Metric icon={<BarChart3 />} label="覆盖板块" value={`${recordActiveCategories}/7`} />
           </div>
+          <ComparisonPanel
+            weekCurrent={weekCurrentStats}
+            weekPrevious={weekPreviousStats}
+            monthCurrent={monthCurrentStats}
+            monthPrevious={monthPreviousStats}
+          />
+          <TrendAlertPanel stats={recordStats} />
           <CoachReportPanel monthly={stats} records={recordStats} />
           <RecordInsightPanel stats={recordStats} />
           <div className="record-chart-grid analytics-record-charts">
-            <RecordTrendChart title={recordScope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={recordStats} />
-            <RecordTrendChart title={recordScope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={recordStats} />
+            <RecordTrendChart title={`${selectedRecordRange.label}用时`} metric="minutes" stats={recordStats} />
+            <RecordTrendChart title={`${selectedRecordRange.label}正确率`} metric="accuracy" stats={recordStats} />
           </div>
           <section className="panel record-category-panel analytics-record-category">
             <div className="panel-title">
               <h2>记录板块表现</h2>
-              <span>{recordScope === "week" ? `${year}年${month}月` : `${year}年`}</span>
+              <span>{selectedRecordRange.label}</span>
             </div>
             <div className="record-category-grid">
               {recordCategoryRows.map((row) => (

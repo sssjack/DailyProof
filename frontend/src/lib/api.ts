@@ -186,7 +186,7 @@ export type PracticeRecordCategorySummary = PracticeRecordPeriodSummary & {
 };
 
 export type PracticeRecordStats = {
-  scope: "week" | "month";
+  scope: "week" | "month" | "range";
   year: number;
   month: number | null;
   start: string;

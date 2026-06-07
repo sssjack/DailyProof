@@ -1052,9 +1052,40 @@ def monthly_record_periods(year: int) -> list[dict]:
     return periods
 
 
-def user_practice_record_stats(db: Session, user_id: int, *, scope: str, year: int, month: int | None = None) -> dict:
-    normalized_scope = "month" if scope == "month" else "week"
-    periods = monthly_record_periods(year) if normalized_scope == "month" else weekly_record_periods(year, month or local_today().month)
+def daily_record_periods(start: date, end: date) -> list[dict]:
+    if end < start:
+        start, end = end, start
+    periods = []
+    cursor = start
+    while cursor <= end:
+        periods.append(
+            {
+                "key": cursor.isoformat(),
+                "label": cursor.strftime("%m-%d"),
+                "start": cursor,
+                "end": cursor,
+            }
+        )
+        cursor += timedelta(days=1)
+    return periods
+
+
+def user_practice_record_stats(
+    db: Session,
+    user_id: int,
+    *,
+    scope: str,
+    year: int,
+    month: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
+    if start_date and end_date:
+        normalized_scope = "range"
+        periods = daily_record_periods(start_date, end_date)
+    else:
+        normalized_scope = "month" if scope == "month" else "week"
+        periods = monthly_record_periods(year) if normalized_scope == "month" else weekly_record_periods(year, month or local_today().month)
     start = periods[0]["start"]
     end = periods[-1]["end"]
     records = practice_record_queryset(db, user_id, start, end)
