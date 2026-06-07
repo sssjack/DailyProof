@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   BarChart3,
   BookOpen,
+  Brain,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -17,8 +18,10 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Repeat2,
   Sparkles,
   Sun,
+  Target,
   TimerReset,
   TrendingUp,
   Trash2,
@@ -86,6 +89,13 @@ const issueTags = [
   { tag: "time_control", label: "时间失控" },
   { tag: "knowledge_gap", label: "知识点不熟" },
   { tag: "state", label: "状态波动" }
+];
+
+const recordTemplates = [
+  { name: "资料套题", category: "data_analysis", questionCount: 20, correctCount: 18, minutes: 27, issueTags: ["time_control"] },
+  { name: "数量 10 题", category: "quantitative", questionCount: 10, correctCount: 8, minutes: 20, issueTags: ["slow_calculation"] },
+  { name: "言语 20 题", category: "verbal", questionCount: 20, correctCount: 17, minutes: 25, issueTags: ["misread"] },
+  { name: "图推 10 题", category: "graphic_reasoning", questionCount: 10, correctCount: 8, minutes: 12, issueTags: ["state"] }
 ];
 
 function App() {
@@ -157,12 +167,33 @@ function App() {
           onOpenAnalytics={() => setView("stats")}
         />
       )}
+      {user && <MobileNav view={view} setView={setView} />}
       {toast && (
         <button className="toast" onClick={() => setToast("")}>
           {toast}
         </button>
       )}
     </div>
+  );
+}
+
+function MobileNav({ view, setView }: { view: View; setView: (view: View) => void }) {
+  const items: Array<{ view: View; label: string; icon: ReactNode }> = [
+    { view: "dashboard", label: "Today", icon: <ClipboardList size={18} /> },
+    { view: "records", label: "Records", icon: <FilePenLine size={18} /> },
+    { view: "stats", label: "Analytics", icon: <BarChart3 size={18} /> },
+    { view: "calendar", label: "Calendar", icon: <CalendarDays size={18} /> }
+  ];
+
+  return (
+    <nav className="mobile-tabbar" aria-label="移动端导航">
+      {items.map((item) => (
+        <button key={item.view} className={view === item.view ? "active" : ""} onClick={() => setView(item.view)}>
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -419,10 +450,185 @@ function AuthPanel({ onAuthed }: { onAuthed: (user: User) => void }) {
   );
 }
 
+function asPercent(value: number | null | undefined) {
+  return value === null || value === undefined ? "-" : `${value}%`;
+}
+
+function formatSigned(value: number) {
+  return `${value >= 0 ? "+" : ""}${value}`;
+}
+
+function weightedAccuracy(records: Array<{ question_count: number; correct_count: number; accuracy?: number | null }>) {
+  const questions = records.reduce((sum, record) => sum + Number(record.question_count || 0), 0);
+  const correct = records.reduce((sum, record) => sum + Number(record.correct_count || 0), 0);
+  if (questions > 0) return Math.round((correct * 1000) / questions) / 10;
+  const values = records.map((record) => record.accuracy).filter((value): value is number => value !== null && value !== undefined);
+  return values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) * 10) / values.length) / 10 : null;
+}
+
+function weightedDailyAccuracy(days: MonthlyStats["daily"]) {
+  const activeDays = days.filter((day) => day.accuracy !== null && day.question_count > 0);
+  const questions = activeDays.reduce((sum, day) => sum + day.question_count, 0);
+  const correct = activeDays.reduce((sum, day) => sum + (Number(day.accuracy || 0) * day.question_count) / 100, 0);
+  return questions > 0 ? Math.round((correct * 1000) / questions) / 10 : null;
+}
+
+function buildTaskAnalyticsSignals(stats: MonthlyStats | null) {
+  const daily = stats?.daily || [];
+  const activeDays = daily.filter((day) => day.practice_task_count > 0 || day.question_count > 0);
+  const recentDays = activeDays.slice(-7);
+  const movingAverage = weightedDailyAccuracy(recentDays);
+  const targetDays = activeDays.filter((day) => (day.accuracy ?? -1) >= 90).length;
+  const targetRate = activeDays.length ? Math.round((targetDays * 1000) / activeDays.length) / 10 : null;
+  const efficiency = stats?.practice_minutes ? Math.round((Number(stats.question_total || 0) / Number(stats.practice_minutes || 1)) * 100) / 100 : null;
+  return { movingAverage, targetRate, efficiency };
+}
+
+function buildRecordAnalyticsSignals(stats: PracticeRecordStats | null) {
+  const records = stats?.records || [];
+  const recentRecords = records.slice(0, 7).reverse();
+  const movingAverage = weightedAccuracy(recentRecords);
+  const targetRecords = records.filter((record) => record.accuracy >= 90).length;
+  const targetRate = records.length ? Math.round((targetRecords * 1000) / records.length) / 10 : null;
+  const minutes = Number(stats?.summary.minutes || 0);
+  const efficiency = minutes > 0 ? Math.round((Number(stats?.summary.correct_count || 0) / minutes) * 100) / 100 : null;
+  return { movingAverage, targetRate, efficiency };
+}
+
+function buildTodayReview(daily: DailyPlan | null, monthly: MonthlyStats | null, records: PracticeRecordStats | null, plan: MonthlyPlan | undefined) {
+  const todayStats = monthly?.daily.find((item) => item.date === daily?.date);
+  const completion = daily?.completion_rate || 0;
+  const unfinished = Math.max(0, (daily?.tasks_total || 0) - (daily?.tasks_done || 0));
+  const practiceRecords = records?.records || [];
+  const todayRecords = practiceRecords.filter((record) => record.date === daily?.date);
+  const weakest = records?.category_summary
+    .filter((row) => row.record_count > 0 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  const topIssue = records?.issue_summary?.[0];
+  const nextAction =
+    unfinished > 0
+      ? `先完成剩余 ${unfinished} 个任务，再做一次简短复盘。`
+      : weakest
+        ? `下一轮优先练 ${weakest.label}，目标把正确率拉回 90%。`
+        : "今天先补一条做题记录，让趋势开始累计。";
+
+  return {
+    completion,
+    todayQuestions: todayStats?.question_count || todayRecords.reduce((sum, record) => sum + record.question_count, 0),
+    todayAccuracy: todayStats?.accuracy ?? weightedAccuracy(todayRecords),
+    todayMinutes: todayStats?.practice_minutes || todayRecords.reduce((sum, record) => sum + record.minutes, 0),
+    planTarget: plan ? `${plan.target_minutes}min / ${plan.target_accuracy}%` : "等待月计划",
+    weakLabel: weakest ? `${weakest.label} ${asPercent(weakest.accuracy)}` : "暂无弱项",
+    issueLabel: topIssue ? `${topIssue.label} · ${topIssue.count} 次` : "暂无高频错因",
+    nextAction
+  };
+}
+
+function buildCoachReport(monthly: MonthlyStats | null, records: PracticeRecordStats | null) {
+  const recordSignals = buildRecordAnalyticsSignals(records);
+  const taskSignals = buildTaskAnalyticsSignals(monthly);
+  const activeCategories = records?.category_summary.filter((row) => row.record_count > 0) || [];
+  const weakest = [...activeCategories]
+    .filter((row) => row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  const topIssue = records?.issue_summary?.[0];
+  const trendRows = records?.periods.filter((row) => row.record_count > 0 && row.accuracy !== null) || [];
+  const latest = trendRows[trendRows.length - 1];
+  const previous = trendRows[trendRows.length - 2];
+  const delta = latest && previous ? Math.round((Number(latest.accuracy) - Number(previous.accuracy)) * 10) / 10 : null;
+
+  return [
+    {
+      title: "本周结论",
+      value: records?.summary.record_count ? `${records.summary.record_count} 次记录` : `${monthly?.tasks_done || 0}/${monthly?.tasks_total || 0} 任务`,
+      detail: records?.summary.record_count
+        ? `加权正确率 ${asPercent(records.summary.accuracy)}，达标率 ${asPercent(recordSignals.targetRate)}，效率 ${recordSignals.efficiency ?? "-"} 对/min。`
+        : `先积累 3 次做题记录，AI 教练会给出更稳定的板块建议。`
+    },
+    {
+      title: "训练建议",
+      value: weakest ? weakest.label : "先补记录",
+      detail: weakest
+        ? `当前最低板块是 ${weakest.label}，建议下一次用 15-25 分钟做限时专项，再记录错因。`
+        : `本月 7 日移动正确率为 ${asPercent(taskSignals.movingAverage)}，先从资料分析或数量关系开始建立样本。`
+    },
+    {
+      title: "证据",
+      value: topIssue ? topIssue.label : delta !== null ? `${formatSigned(delta)}%` : "等待样本",
+      detail: topIssue
+        ? `${topIssue.label} 是当前最高频错因，共 ${topIssue.count} 次。建议备注里继续写明题型和触发原因。`
+        : delta !== null
+          ? `最近两个统计周期正确率变化 ${formatSigned(delta)}%，可以用来判断复盘是否有效。`
+          : "系统会根据题量、正确数、用时和错因标签给出可解释建议。"
+    }
+  ];
+}
+
+function TodayReviewPanel({
+  daily,
+  monthly,
+  records,
+  plan
+}: {
+  daily: DailyPlan | null;
+  monthly: MonthlyStats | null;
+  records: PracticeRecordStats | null;
+  plan: MonthlyPlan | undefined;
+}) {
+  const review = buildTodayReview(daily, monthly, records, plan);
+  return (
+    <section className="panel today-review-panel">
+      <div className="panel-title">
+        <h2>今日复盘中枢</h2>
+        <span>Review hub</span>
+      </div>
+      <div className="today-review-grid">
+        <article className="today-review-main">
+          <span>下一步</span>
+          <b>{review.nextAction}</b>
+          <p>目标口径：{review.planTarget}</p>
+        </article>
+        <article>
+          <span>今日完成</span>
+          <b>{review.completion}%</b>
+          <p>{review.todayQuestions} 题 · {asPercent(review.todayAccuracy)} · {review.todayMinutes}min</p>
+        </article>
+        <article>
+          <span>优先板块</span>
+          <b>{review.weakLabel}</b>
+          <p>{review.issueLabel}</p>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function CoachReportPanel({ monthly, records }: { monthly: MonthlyStats | null; records: PracticeRecordStats | null }) {
+  const report = buildCoachReport(monthly, records);
+  return (
+    <section className="panel coach-report-panel">
+      <div className="panel-title">
+        <h2>AI 周报</h2>
+        <span>Evidence coach</span>
+      </div>
+      <div className="coach-report-grid">
+        {report.map((item) => (
+          <article key={item.title}>
+            <span>{item.title}</span>
+            <b>{item.value}</b>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Dashboard({ user, toast }: { user: User; toast: (message: string) => void }) {
   const [daily, setDaily] = useState<DailyPlan | null>(null);
   const [plans, setPlans] = useState<MonthlyPlan[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [recordStats, setRecordStats] = useState<PracticeRecordStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const today = new Date();
@@ -432,14 +638,16 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
   const refresh = async () => {
     setLoading(true);
     try {
-      const [dailyData, planData, statsData] = await Promise.all([
+      const [dailyData, planData, statsData, recordStatsData] = await Promise.all([
         api<{ daily_plan: DailyPlan | null }>("/daily"),
         api<MonthlyPlan[]>(`/plans/monthly?year=${year}&month=${month}`),
-        api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`)
+        api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`),
+        api<PracticeRecordStats>(`/practice-records/stats?scope=week&year=${year}&month=${month}`)
       ]);
       setDaily(dailyData.daily_plan);
       setPlans(planData);
       setStats(statsData);
+      setRecordStats(recordStatsData);
     } finally {
       setLoading(false);
     }
@@ -481,6 +689,7 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
       toast("结果已保存");
     }
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats).catch(() => undefined);
+    api<PracticeRecordStats>(`/practice-records/stats?scope=week&year=${year}&month=${month}`).then(setRecordStats).catch(() => undefined);
   };
 
   const todayStats = stats?.daily.find((item) => item.date === daily?.date);
@@ -514,6 +723,8 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
         <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />
         <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
       </div>
+
+      <TodayReviewPanel daily={daily} monthly={stats} records={recordStats} plan={currentPlan} />
 
       <div className="workspace-grid">
         <section className="panel main-panel">
@@ -1002,6 +1213,29 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
     setSelectedIssueTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
   };
 
+  const applyRecordTemplate = (template: (typeof recordTemplates)[number]) => {
+    setCategory(template.category);
+    setQuestionCount(String(template.questionCount));
+    setCorrectCount(String(template.correctCount));
+    setMinutes(String(template.minutes));
+    setSelectedIssueTags(template.issueTags);
+  };
+
+  const reuseLastRecord = () => {
+    const lastRecord = records[0];
+    if (!lastRecord) {
+      toast("还没有可复用的记录");
+      return;
+    }
+    setCategory(lastRecord.category);
+    setQuestionCount(String(lastRecord.question_count || ""));
+    setCorrectCount(String(lastRecord.correct_count || ""));
+    setMinutes(String(lastRecord.minutes || ""));
+    setSelectedIssueTags(lastRecord.issue_tags || []);
+    setNote("");
+    toast("已复用上一条记录格式");
+  };
+
   const submit = async () => {
     const parsedQuestionCount = Number(questionCount);
     const parsedCorrectCount = Number(correctCount);
@@ -1096,6 +1330,18 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
           <div className="panel-title">
             <h2>新增记录</h2>
             <span>Daily log</span>
+          </div>
+          <div className="record-template-strip">
+            {recordTemplates.map((template) => (
+              <button key={template.name} type="button" onClick={() => applyRecordTemplate(template)}>
+                <b>{template.name}</b>
+                <span>{template.questionCount} 题 · {template.minutes}min</span>
+              </button>
+            ))}
+            <button className="reuse-record-btn" type="button" onClick={reuseLastRecord}>
+              <Repeat2 size={15} />
+              <span>复用上一条</span>
+            </button>
           </div>
           <div className="record-form">
             <label>
@@ -1525,6 +1771,8 @@ function StatsCenter() {
   const recordSummary = recordStats?.summary;
   const recordCategoryRows = recordStats?.category_summary || buildEmptyRecordCategories();
   const recordActiveCategories = recordCategoryRows.filter((row) => row.record_count > 0).length;
+  const taskSignals = buildTaskAnalyticsSignals(stats);
+  const recordSignals = buildRecordAnalyticsSignals(recordStats);
 
   return (
     <main className="workspace analytics-workspace">
@@ -1559,8 +1807,12 @@ function StatsCenter() {
             <Metric icon={<FilePenLine />} label="记录次数" value={`${recordSummary?.record_count || 0}`} />
             <Metric icon={<BookOpen />} label="累计题量" value={`${recordSummary?.question_count || 0}`} />
             <Metric icon={<Gauge />} label="加权正确率" value={formatRecordAccuracy(recordSummary?.accuracy)} />
+            <Metric icon={<TrendingUp />} label="7次均线" value={formatRecordAccuracy(recordSignals.movingAverage)} />
+            <Metric icon={<Target />} label="达标率" value={formatRecordAccuracy(recordSignals.targetRate)} />
+            <Metric icon={<Brain />} label="效率" value={`${recordSignals.efficiency ?? "-"}对/min`} />
             <Metric icon={<BarChart3 />} label="覆盖板块" value={`${recordActiveCategories}/7`} />
           </div>
+          <CoachReportPanel monthly={stats} records={recordStats} />
           <RecordInsightPanel stats={recordStats} />
           <div className="record-chart-grid analytics-record-charts">
             <RecordTrendChart title={recordScope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={recordStats} />
@@ -1593,7 +1845,11 @@ function StatsCenter() {
             <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
             <Metric icon={<BarChart3 />} label="平均正确率" value={`${stats?.avg_accuracy || 0}%`} />
             <Metric icon={<TimerReset />} label="月刷题用时" value={`${stats?.practice_minutes || 0}min`} />
+            <Metric icon={<TrendingUp />} label="7日均线" value={asPercent(taskSignals.movingAverage)} />
+            <Metric icon={<Target />} label="达标率" value={asPercent(taskSignals.targetRate)} />
+            <Metric icon={<Brain />} label="效率" value={`${taskSignals.efficiency ?? "-"}题/min`} />
           </div>
+          <CoachReportPanel monthly={stats} records={recordStats} />
           <section className="panel chart-panel">
             <div className="panel-title">
               <h2>日趋势</h2>

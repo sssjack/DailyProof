@@ -1,0 +1,19 @@
+{
+  "name": "DailyProof",
+  "short_name": "DailyProof",
+  "description": "DailyProof turns daily study plans and practice records into visible progress evidence.",
+  "start_url": "/DailyProof/",
+  "scope": "/DailyProof/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#071016",
+  "theme_color": "#071016",
+  "icons": [
+    {
+      "src": "/DailyProof/dailyproof-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
