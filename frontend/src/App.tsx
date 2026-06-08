@@ -963,6 +963,49 @@ type TrendAlert = {
   detail: string;
   tone?: "attention" | "steady" | "lift";
 };
+type InsightFeedItem = {
+  title: string;
+  value: string;
+  detail: string;
+  meta: string;
+  tone?: "attention" | "steady" | "lift";
+};
+type GoalPrediction = {
+  probability: number | null;
+  status: string;
+  detail: string;
+  nextAction: string;
+  sessionsNeeded: string;
+  accuracyGap: number | null;
+  minutesGap: number | null;
+  targetAccuracy: number;
+  targetMinutes: number;
+};
+type ConfidenceAssessment = {
+  score: number;
+  label: string;
+  detail: string;
+  tone: "attention" | "steady" | "lift";
+  signals: Array<{ label: string; value: string; strong: boolean }>;
+};
+type DetailedComparison = {
+  title: string;
+  value: string;
+  delta: string;
+  detail: string;
+  tone: "positive" | "negative" | "neutral";
+};
+type IssueProfileRow = {
+  tag: string;
+  label: string;
+  count: number;
+  share: number;
+  intensity: number;
+  topCategory: string;
+};
+
+const DEFAULT_TARGET_ACCURACY = 90;
+const DEFAULT_TARGET_MINUTES = 27;
 
 const recordRangeOptions: Array<{ value: RecordRangePreset; label: string }> = [
   { value: "this_week", label: "本周" },
@@ -1071,6 +1114,321 @@ function comparisonTone(current: number | null | undefined, previous: number | n
 function efficiencyFromSummary(summary: PracticeRecordPeriodSummary | undefined) {
   if (!summary?.minutes) return null;
   return Math.round((Number(summary.correct_count || 0) / Number(summary.minutes || 1)) * 100) / 100;
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function signedValue(value: number, suffix = "") {
+  return `${value >= 0 ? "+" : ""}${roundOne(value)}${suffix}`;
+}
+
+function recordsAscending(stats: PracticeRecordStats | null) {
+  return [...(stats?.records || [])].sort((a, b) => {
+    const dateDelta = dateFromKey(a.date).getTime() - dateFromKey(b.date).getTime();
+    return dateDelta || a.id - b.id;
+  });
+}
+
+function summarizeRecordList(records: PracticeRecord[]): PracticeRecordPeriodSummary {
+  const questionCount = records.reduce((sum, record) => sum + Number(record.question_count || 0), 0);
+  const correctCount = records.reduce((sum, record) => sum + Number(record.correct_count || 0), 0);
+  const minutes = records.reduce((sum, record) => sum + Number(record.minutes || 0), 0);
+  return {
+    record_count: records.length,
+    question_count: questionCount,
+    correct_count: correctCount,
+    minutes: roundOne(minutes),
+    accuracy: questionCount > 0 ? roundOne((correctCount / questionCount) * 100) : null
+  };
+}
+
+function averageMinutesFromSummary(summary: PracticeRecordPeriodSummary | undefined) {
+  if (!summary?.record_count) return null;
+  return roundOne(Number(summary.minutes || 0) / Number(summary.record_count || 1));
+}
+
+function buildGoalPrediction(
+  stats: PracticeRecordStats | null,
+  targetAccuracy = DEFAULT_TARGET_ACCURACY,
+  targetMinutes = DEFAULT_TARGET_MINUTES
+): GoalPrediction {
+  if (!stats?.summary.record_count) {
+    return {
+      probability: null,
+      status: "等待样本",
+      detail: "先记录 3 次以上，系统会开始预测目标达成概率。",
+      nextAction: "今天先补一条完整做题记录",
+      sessionsNeeded: "3 次样本",
+      accuracyGap: null,
+      minutesGap: null,
+      targetAccuracy,
+      targetMinutes
+    };
+  }
+
+  const records = recordsAscending(stats);
+  const summary = stats.summary;
+  const avgMinutes = averageMinutesFromSummary(summary) || 0;
+  const accuracy = Number(summary.accuracy || 0);
+  const accuracyGap = roundOne(targetAccuracy - accuracy);
+  const minutesGap = roundOne(avgMinutes - targetMinutes);
+  const recent = summarizeRecordList(records.slice(-5));
+  const previous = summarizeRecordList(records.slice(-10, -5));
+  const trendDelta = recent.accuracy !== null && previous.accuracy !== null ? roundOne(Number(recent.accuracy) - Number(previous.accuracy)) : 0;
+  const hitRate = records.filter((record) => record.accuracy >= targetAccuracy && record.minutes <= targetMinutes).length / Math.max(1, records.length);
+  const accuracyScore = clamp((accuracy / Math.max(1, targetAccuracy)) * 45, 0, 45);
+  const timeScore = avgMinutes <= targetMinutes ? 25 : clamp(25 - (avgMinutes - targetMinutes) * 2, 0, 25);
+  const hitScore = hitRate * 20;
+  const trendScore = clamp(6 + trendDelta, 0, 10);
+  const samplePenalty = records.length < 3 ? -18 : records.length < 6 ? -8 : 0;
+  const probability = Math.round(clamp(accuracyScore + timeScore + hitScore + trendScore + samplePenalty, 5, 96));
+  const reached = accuracy >= targetAccuracy && avgMinutes <= targetMinutes;
+  const sessions = reached ? "已达标" : `${Math.max(1, Math.ceil(Math.max(Math.max(0, accuracyGap) / 2.5, Math.max(0, minutesGap) / 3)))} 次专项`;
+  const weakest = stats.category_summary
+    .filter((row) => row.record_count > 0 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  const nextAction = reached
+    ? "保持当前节奏，再扩大样本验证稳定性"
+    : weakest
+      ? `下一轮优先练 ${weakest.label}，同时记录错因`
+      : "下一轮做一次限时套题，补齐目标判断样本";
+
+  return {
+    probability,
+    status: reached ? "目标已进入稳定区" : probability >= 70 ? "接近目标" : probability >= 45 ? "需要巩固" : "风险偏高",
+    detail: `当前加权正确率 ${formatRecordAccuracy(summary.accuracy)}，平均单次 ${avgMinutes}min，目标 ${targetAccuracy}% / ${targetMinutes}min。`,
+    nextAction,
+    sessionsNeeded: records.length < 3 ? "先补到 3 次样本" : sessions,
+    accuracyGap,
+    minutesGap,
+    targetAccuracy,
+    targetMinutes
+  };
+}
+
+function buildDataConfidence(stats: PracticeRecordStats | null): ConfidenceAssessment {
+  const records = stats?.summary.record_count || 0;
+  const questions = stats?.summary.question_count || 0;
+  const activeCategories = stats?.category_summary.filter((row) => row.record_count > 0).length || 0;
+  const activePeriods = stats?.periods.filter((row) => row.record_count > 0).length || 0;
+  const issueCount = stats?.issue_summary.reduce((sum, issue) => sum + issue.count, 0) || 0;
+  const score = clamp(
+    (records >= 12 ? 35 : records >= 6 ? 28 : records >= 3 ? 18 : records > 0 ? 8 : 0) +
+      (activeCategories >= 4 ? 20 : activeCategories >= 2 ? 14 : activeCategories >= 1 ? 8 : 0) +
+      (activePeriods >= 6 ? 20 : activePeriods >= 3 ? 14 : activePeriods >= 1 ? 7 : 0) +
+      (issueCount > 0 ? 15 : 5) +
+      (questions >= 120 ? 10 : questions >= 60 ? 7 : questions >= 20 ? 4 : 0),
+    0,
+    100
+  );
+  const tone: ConfidenceAssessment["tone"] = score >= 75 ? "lift" : score >= 45 ? "steady" : "attention";
+  return {
+    score,
+    label: score >= 75 ? "高可信" : score >= 45 ? "中等可信" : "样本偏少",
+    detail: score >= 75 ? "当前样本量和覆盖面足够支撑趋势判断。" : score >= 45 ? "可以参考趋势，但仍建议继续补充板块和错因样本。" : "当前结论仅供提醒，不适合直接做强判断。",
+    tone,
+    signals: [
+      { label: "记录", value: `${records} 次`, strong: records >= 6 },
+      { label: "题量", value: `${questions} 题`, strong: questions >= 60 },
+      { label: "板块", value: `${activeCategories}/7`, strong: activeCategories >= 3 },
+      { label: "错因", value: `${issueCount} 条`, strong: issueCount > 0 }
+    ]
+  };
+}
+
+function summarizePeriodRows(rows: PracticeRecordStats["periods"]): PracticeRecordPeriodSummary {
+  const recordCount = rows.reduce((sum, row) => sum + Number(row.record_count || 0), 0);
+  const questionCount = rows.reduce((sum, row) => sum + Number(row.question_count || 0), 0);
+  const correctCount = rows.reduce((sum, row) => sum + Number(row.correct_count || 0), 0);
+  const minutes = rows.reduce((sum, row) => sum + Number(row.minutes || 0), 0);
+  return {
+    record_count: recordCount,
+    question_count: questionCount,
+    correct_count: correctCount,
+    minutes: roundOne(minutes),
+    accuracy: questionCount > 0 ? roundOne((correctCount / questionCount) * 100) : null
+  };
+}
+
+function buildDetailedComparisons(stats: PracticeRecordStats | null): DetailedComparison[] {
+  if (!stats?.summary.record_count) return [];
+  const rows: DetailedComparison[] = [];
+  const activeCategories = stats.category_summary
+    .filter((row) => row.record_count > 0 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy));
+
+  if (activeCategories.length >= 2) {
+    const weakest = activeCategories[0];
+    const strongest = activeCategories[activeCategories.length - 1];
+    const gap = roundOne(Number(strongest.accuracy) - Number(weakest.accuracy));
+    rows.push({
+      title: "板块差异",
+      value: `${strongest.label} / ${weakest.label}`,
+      delta: `${gap}%`,
+      detail: `最高 ${formatRecordAccuracy(strongest.accuracy)}，最低 ${formatRecordAccuracy(weakest.accuracy)}。差距越大，越需要定向补弱。`,
+      tone: gap > 15 ? "negative" : gap > 8 ? "neutral" : "positive"
+    });
+  }
+
+  const records = recordsAscending(stats);
+  const weekdayRecords = records.filter((record) => {
+    const day = dateFromKey(record.date).getDay();
+    return day >= 1 && day <= 5;
+  });
+  const weekendRecords = records.filter((record) => {
+    const day = dateFromKey(record.date).getDay();
+    return day === 0 || day === 6;
+  });
+  if (weekdayRecords.length && weekendRecords.length) {
+    const weekday = summarizeRecordList(weekdayRecords);
+    const weekend = summarizeRecordList(weekendRecords);
+    const delta = weekday.accuracy !== null && weekend.accuracy !== null ? roundOne(Number(weekday.accuracy) - Number(weekend.accuracy)) : 0;
+    rows.push({
+      title: "工作日 vs 周末",
+      value: `${formatRecordAccuracy(weekday.accuracy)} / ${formatRecordAccuracy(weekend.accuracy)}`,
+      delta: signedValue(delta, "%"),
+      detail: `工作日 ${weekday.record_count} 次，周末 ${weekend.record_count} 次，用来判断状态是否受节奏影响。`,
+      tone: delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative"
+    });
+  }
+
+  if (records.length >= 6) {
+    const recent = summarizeRecordList(records.slice(-3));
+    const previous = summarizeRecordList(records.slice(-6, -3));
+    const delta = recent.accuracy !== null && previous.accuracy !== null ? roundOne(Number(recent.accuracy) - Number(previous.accuracy)) : 0;
+    rows.push({
+      title: "最近 3 次 vs 前 3 次",
+      value: `${formatRecordAccuracy(recent.accuracy)} / ${formatRecordAccuracy(previous.accuracy)}`,
+      delta: signedValue(delta, "%"),
+      detail: "这是最敏感的短期趋势口径，适合快速发现复盘是否有效。",
+      tone: delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative"
+    });
+  }
+
+  const periods = stats.periods.filter((period) => period.question_count > 0);
+  if (periods.length >= 4) {
+    const sorted = [...periods].sort((a, b) => Number(a.question_count) - Number(b.question_count));
+    const median = sorted[Math.floor(sorted.length / 2)].question_count;
+    const high = summarizePeriodRows(periods.filter((period) => period.question_count >= median));
+    const low = summarizePeriodRows(periods.filter((period) => period.question_count < median));
+    if (high.record_count && low.record_count) {
+      const delta = high.accuracy !== null && low.accuracy !== null ? roundOne(Number(high.accuracy) - Number(low.accuracy)) : 0;
+      rows.push({
+        title: "高题量日 vs 低题量日",
+        value: `${formatRecordAccuracy(high.accuracy)} / ${formatRecordAccuracy(low.accuracy)}`,
+        delta: signedValue(delta, "%"),
+        detail: `以 ${median} 题作为分界，观察加量后正确率是否稳定。`,
+        tone: delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative"
+      });
+    }
+  }
+
+  return rows;
+}
+
+function buildIssueProfile(stats: PracticeRecordStats | null): IssueProfileRow[] {
+  if (!stats?.issue_summary.length) return [];
+  const total = stats.issue_summary.reduce((sum, issue) => sum + issue.count, 0) || 1;
+  const max = Math.max(...stats.issue_summary.map((issue) => issue.count), 1);
+  return stats.issue_summary.slice(0, 6).map((issue) => {
+    const categoryCounts = stats.records
+      .filter((record) => record.issue_tags.includes(issue.tag))
+      .reduce<Record<string, number>>((map, record) => {
+        map[record.label] = (map[record.label] || 0) + 1;
+        return map;
+      }, {});
+    const topCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "未集中";
+    return {
+      tag: issue.tag,
+      label: issue.label,
+      count: issue.count,
+      share: Math.round((issue.count / total) * 100),
+      intensity: Math.round((issue.count / max) * 100),
+      topCategory
+    };
+  });
+}
+
+function buildInsightFeed(
+  stats: PracticeRecordStats | null,
+  prediction: GoalPrediction,
+  confidence: ConfidenceAssessment,
+  weekCurrent: PracticeRecordStats | null,
+  weekPrevious: PracticeRecordStats | null
+): InsightFeedItem[] {
+  if (!stats?.summary.record_count) {
+    return [
+      {
+        title: "先建立样本",
+        value: "记录 3 次",
+        detail: "完成 3 次以上做题记录后，系统会开始生成趋势、错因和目标预测。",
+        meta: "Start",
+        tone: "steady"
+      }
+    ];
+  }
+
+  const feed: InsightFeedItem[] = [
+    {
+      title: "目标达成预测",
+      value: prediction.probability === null ? prediction.status : `${prediction.probability}%`,
+      detail: prediction.detail,
+      meta: `${prediction.targetAccuracy}% / ${prediction.targetMinutes}min`,
+      tone: prediction.probability !== null && prediction.probability >= 70 ? "lift" : prediction.probability !== null && prediction.probability < 45 ? "attention" : "steady"
+    },
+    {
+      title: "数据可信度",
+      value: `${confidence.score}%`,
+      detail: confidence.detail,
+      meta: confidence.label,
+      tone: confidence.tone
+    }
+  ];
+
+  const weakest = stats.category_summary
+    .filter((row) => row.record_count > 0 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  if (weakest) {
+    feed.push({
+      title: "补弱优先级",
+      value: `${weakest.label} ${formatRecordAccuracy(weakest.accuracy)}`,
+      detail: weakest.issue_summary?.[0] ? `高频错因是 ${weakest.issue_summary[0].label}，建议下一轮单独复盘。` : "这是当前范围正确率最低的板块。",
+      meta: "Weak spot",
+      tone: "attention"
+    });
+  }
+
+  const topIssue = stats.issue_summary?.[0];
+  if (topIssue) {
+    feed.push({
+      title: "错因集中度",
+      value: topIssue.label,
+      detail: `当前范围出现 ${topIssue.count} 次，是最值得优先处理的复盘入口。`,
+      meta: "Issue",
+      tone: topIssue.count >= 3 ? "attention" : "steady"
+    });
+  }
+
+  const currentAccuracy = weekCurrent?.summary.accuracy;
+  const previousAccuracy = weekPrevious?.summary.accuracy;
+  if (currentAccuracy !== null && currentAccuracy !== undefined && previousAccuracy !== null && previousAccuracy !== undefined) {
+    const delta = roundOne(Number(currentAccuracy) - Number(previousAccuracy));
+    feed.push({
+      title: "本周环比",
+      value: signedValue(delta, "%"),
+      detail: delta >= 0 ? "本周正确率高于上周，继续观察是否稳定。" : "本周正确率低于上周，建议回看最近记录的错因。",
+      meta: "WoW",
+      tone: delta >= 0 ? "lift" : "attention"
+    });
+  }
+
+  return feed.slice(0, 6);
 }
 
 function buildRecordInsights(stats: PracticeRecordStats | null): RecordInsight[] {
@@ -1271,6 +1629,181 @@ function TrendAlertPanel({ stats }: { stats: PracticeRecordStats | null }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function InsightFeedPanel({
+  stats,
+  prediction,
+  confidence,
+  weekCurrent,
+  weekPrevious
+}: {
+  stats: PracticeRecordStats | null;
+  prediction: GoalPrediction;
+  confidence: ConfidenceAssessment;
+  weekCurrent: PracticeRecordStats | null;
+  weekPrevious: PracticeRecordStats | null;
+}) {
+  const feed = buildInsightFeed(stats, prediction, confidence, weekCurrent, weekPrevious);
+  return (
+    <section className="panel insight-feed-panel" id="insight-feed">
+      <div className="panel-title">
+        <h2>Insight Feed 洞察流</h2>
+        <span>Priority first</span>
+      </div>
+      <div className="insight-feed-list">
+        {feed.map((item, index) => (
+          <article className={`insight-feed-item ${item.tone || "steady"}`} key={`${item.title}-${item.value}`}>
+            <i>{String(index + 1).padStart(2, "0")}</i>
+            <div>
+              <span>{item.meta}</span>
+              <b>{item.title}</b>
+              <p>{item.detail}</p>
+            </div>
+            <strong>{item.value}</strong>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GoalPredictionPanel({ prediction }: { prediction: GoalPrediction }) {
+  const probabilityText = prediction.probability === null ? "-" : `${prediction.probability}%`;
+  return (
+    <section className="panel goal-prediction-panel" id="goal-prediction">
+      <div className="panel-title">
+        <h2>目标达成预测</h2>
+        <span>{prediction.targetAccuracy}% / {prediction.targetMinutes}min</span>
+      </div>
+      <div className="goal-prediction-layout">
+        <div className="goal-probability">
+          <span>达成概率</span>
+          <b>{probabilityText}</b>
+          <i><em style={{ width: `${prediction.probability || 0}%` }} /></i>
+          <p>{prediction.status}</p>
+        </div>
+        <div className="goal-prediction-grid">
+          <article>
+            <span>预计还需</span>
+            <b>{prediction.sessionsNeeded}</b>
+            <p>{prediction.nextAction}</p>
+          </article>
+          <article>
+            <span>正确率差距</span>
+            <b>{prediction.accuracyGap === null ? "-" : `${signedValue(-prediction.accuracyGap, "%")}`}</b>
+            <p>{prediction.accuracyGap === null ? "等待样本" : prediction.accuracyGap <= 0 ? "已达到正确率目标" : `距离目标还差 ${prediction.accuracyGap}%`}</p>
+          </article>
+          <article>
+            <span>用时差距</span>
+            <b>{prediction.minutesGap === null ? "-" : `${prediction.minutesGap <= 0 ? "" : "+"}${prediction.minutesGap}min`}</b>
+            <p>{prediction.minutesGap === null ? "等待样本" : prediction.minutesGap <= 0 ? "已进入目标用时内" : "当前平均用时仍高于目标"}</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DataConfidencePanel({ confidence }: { confidence: ConfidenceAssessment }) {
+  return (
+    <section className={`panel data-confidence-panel ${confidence.tone}`} id="data-confidence">
+      <div className="panel-title">
+        <h2>数据可信度</h2>
+        <span>{confidence.label}</span>
+      </div>
+      <div className="confidence-body">
+        <div className="confidence-score">
+          <b>{confidence.score}%</b>
+          <i><em style={{ width: `${confidence.score}%` }} /></i>
+          <p>{confidence.detail}</p>
+        </div>
+        <div className="confidence-signal-grid">
+          {confidence.signals.map((signal) => (
+            <span className={signal.strong ? "strong" : ""} key={signal.label}>
+              <b>{signal.value}</b>
+              {signal.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DetailedComparisonPanel({ stats }: { stats: PracticeRecordStats | null }) {
+  const comparisons = buildDetailedComparisons(stats);
+  return (
+    <section className="panel detailed-comparison-panel" id="detail-comparison">
+      <div className="panel-title">
+        <h2>细分对比</h2>
+        <span>Segment compare</span>
+      </div>
+      {comparisons.length ? (
+        <div className="detailed-comparison-grid">
+          {comparisons.map((item) => (
+            <article className="detailed-comparison-card" key={item.title}>
+              <span>{item.title}</span>
+              <b>{item.value}</b>
+              <em className={item.tone}>{item.delta}</em>
+              <p>{item.detail}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state small">当前样本还不足以拆分工作日、周末、近期和题量层级。继续记录后会自动生成细分对比。</div>
+      )}
+    </section>
+  );
+}
+
+function IssueProfilePanel({ stats }: { stats: PracticeRecordStats | null }) {
+  const issues = buildIssueProfile(stats);
+  return (
+    <section className="panel issue-profile-panel" id="issue-profile">
+      <div className="panel-title">
+        <h2>错因画像</h2>
+        <span>Issue profile</span>
+      </div>
+      {issues.length ? (
+        <div className="issue-profile-list">
+          {issues.map((issue) => (
+            <article className="issue-profile-row" key={issue.tag}>
+              <div>
+                <b>{issue.label}</b>
+                <span>{issue.topCategory} · {issue.count} 次 · {issue.share}%</span>
+              </div>
+              <i><em style={{ width: `${issue.intensity}%` }} /></i>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state small">记录错因标签后，这里会形成粗心、计算慢、审题错等问题画像。</div>
+      )}
+    </section>
+  );
+}
+
+function MobileRecordBrief({ prediction, confidence, stats }: { prediction: GoalPrediction; confidence: ConfidenceAssessment; stats: PracticeRecordStats | null }) {
+  const weakest = stats?.category_summary
+    .filter((row) => row.record_count > 0 && row.accuracy !== null)
+    .sort((a, b) => Number(a.accuracy) - Number(b.accuracy))[0];
+  return (
+    <div className="record-mobile-brief">
+      <a href="#insight-feed">
+        <span>预测</span>
+        <b>{prediction.probability === null ? prediction.status : `${prediction.probability}%`}</b>
+      </a>
+      <a href="#data-confidence">
+        <span>可信度</span>
+        <b>{confidence.label}</b>
+      </a>
+      <a href="#issue-profile">
+        <span>优先项</span>
+        <b>{weakest ? weakest.label : "补样本"}</b>
+      </a>
+    </div>
   );
 }
 
@@ -2014,6 +2547,7 @@ function StatsCenter() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
   const [mode, setMode] = useState<AnalyticsMode>("tasks");
   const [recordRangePreset, setRecordRangePreset] = useState<RecordRangePreset>("this_week");
   const [customStart, setCustomStart] = useState(toDateKey(addDays(today, -29)));
@@ -2027,6 +2561,10 @@ function StatsCenter() {
 
   useEffect(() => {
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats);
+  }, [year, month]);
+
+  useEffect(() => {
+    api<MonthlyPlan[]>(`/plans/monthly?year=${year}&month=${month}`).then(setMonthlyPlans).catch(() => setMonthlyPlans([]));
   }, [year, month]);
 
   useEffect(() => {
@@ -2078,6 +2616,11 @@ function StatsCenter() {
   const recordActiveCategories = recordCategoryRows.filter((row) => row.record_count > 0).length;
   const taskSignals = buildTaskAnalyticsSignals(stats);
   const recordSignals = buildRecordAnalyticsSignals(recordStats);
+  const activeMonthlyPlan = monthlyPlans[0];
+  const recordTargetAccuracy = activeMonthlyPlan?.target_accuracy || DEFAULT_TARGET_ACCURACY;
+  const recordTargetMinutes = activeMonthlyPlan?.target_minutes || DEFAULT_TARGET_MINUTES;
+  const goalPrediction = buildGoalPrediction(recordStats, recordTargetAccuracy, recordTargetMinutes);
+  const confidenceAssessment = buildDataConfidence(recordStats);
 
   return (
     <main className="workspace analytics-workspace">
@@ -2130,12 +2673,26 @@ function StatsCenter() {
             <Metric icon={<Brain />} label="效率" value={`${recordSignals.efficiency ?? "-"}对/min`} />
             <Metric icon={<BarChart3 />} label="覆盖板块" value={`${recordActiveCategories}/7`} />
           </div>
+          <MobileRecordBrief prediction={goalPrediction} confidence={confidenceAssessment} stats={recordStats} />
+          <InsightFeedPanel
+            stats={recordStats}
+            prediction={goalPrediction}
+            confidence={confidenceAssessment}
+            weekCurrent={weekCurrentStats}
+            weekPrevious={weekPreviousStats}
+          />
+          <div className="record-intelligence-grid">
+            <GoalPredictionPanel prediction={goalPrediction} />
+            <DataConfidencePanel confidence={confidenceAssessment} />
+          </div>
           <ComparisonPanel
             weekCurrent={weekCurrentStats}
             weekPrevious={weekPreviousStats}
             monthCurrent={monthCurrentStats}
             monthPrevious={monthPreviousStats}
           />
+          <DetailedComparisonPanel stats={recordStats} />
+          <IssueProfilePanel stats={recordStats} />
           <TrendAlertPanel stats={recordStats} />
           <CoachReportPanel monthly={stats} records={recordStats} />
           <RecordInsightPanel stats={recordStats} />
