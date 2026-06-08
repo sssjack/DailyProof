@@ -341,6 +341,7 @@ def create_monthly_plan(db: Session, user: models.User, payload: MonthlyPlanCrea
         target_minutes=payload.target_minutes,
         target_accuracy=payload.target_accuracy,
         routine_text=payload.routine_text,
+        category_goals={k: v.model_dump() for k, v in payload.category_goals.items()} if payload.category_goals else None,
         status="active",
     )
     db.add(plan)
@@ -551,6 +552,7 @@ def serialize_plan(plan: models.MonthlyPlan) -> dict:
         "objective": plan.objective,
         "target_minutes": plan.target_minutes,
         "target_accuracy": plan.target_accuracy,
+        "category_goals": plan.category_goals,
         "routine_text": plan.routine_text,
         "status": plan.status,
         "created_at": plan.created_at.isoformat() if plan.created_at else None,
@@ -1011,6 +1013,65 @@ def summarize_issue_tags(records: list[models.PracticeRecord]) -> list[dict]:
         {"tag": tag, "label": ISSUE_TAG_LABELS[tag], "count": count}
         for tag, count in sorted(counts.items(), key=lambda item: (-item[1], ISSUE_TAG_LABELS[item[0]]))
     ]
+
+
+def practice_record_distribution(
+    db: Session,
+    user_id: int,
+    start: date,
+    end: date,
+) -> dict:
+    records = practice_record_queryset(db, user_id, start, end)
+
+    buckets: dict[str, int] = {}
+    for i in range(0, 105, 5):
+        buckets[f"{i}-{i + 5}"] = 0
+    for record in records:
+        acc = record_accuracy(record)
+        bucket_idx = min(int(acc // 5) * 5, 100)
+        key = f"{bucket_idx}-{bucket_idx + 5}"
+        buckets[key] = buckets.get(key, 0) + 1
+    accuracy_distribution = [
+        {"range": k, "count": v} for k, v in buckets.items()
+    ]
+
+    periods = weekly_record_periods(start.year, start.month)
+    time_per_question_trend = []
+    for period in periods:
+        period_records = [r for r in records if period["start"] <= r.record_date <= period["end"]]
+        total_minutes = sum(float(r.minutes or 0) for r in period_records)
+        total_questions = sum(record_question_count(r) for r in period_records)
+        time_per_question_trend.append({
+            "period": period["key"],
+            "label": period["label"],
+            "minutes_per_question": round(total_minutes / total_questions, 2) if total_questions > 0 else None,
+            "total_minutes": round(total_minutes, 1),
+            "total_questions": total_questions,
+        })
+
+    yoy_comparison = None
+    prev_year = start.year - 1
+    prev_start = start.replace(year=prev_year)
+    prev_end = end.replace(year=prev_year)
+    try:
+        prev_records = practice_record_queryset(db, user_id, prev_start, prev_end)
+        if prev_records:
+            yoy_comparison = {
+                "current": summarize_practice_records(records),
+                "previous": summarize_practice_records(prev_records),
+                "previous_year": prev_year,
+                "current_year": start.year,
+            }
+    except Exception:
+        pass
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "accuracy_distribution": accuracy_distribution,
+        "time_per_question_trend": time_per_question_trend,
+        "yoy_comparison": yoy_comparison,
+    }
 
 
 def weekly_record_periods(year: int, month: int) -> list[dict]:

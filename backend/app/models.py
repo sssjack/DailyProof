@@ -34,6 +34,7 @@ class MonthlyPlan(Base):
     objective: Mapped[str] = mapped_column(Text)
     target_minutes: Mapped[int] = mapped_column(Integer, default=27)
     target_accuracy: Mapped[float] = mapped_column(Float, default=90.0)
+    category_goals: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
     routine_text: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

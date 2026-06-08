@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -47,6 +47,11 @@ import {
   register,
   setToken
 } from "./lib/api";
+import type { AIResponse, CategoryGoal, DistributionStats } from "./lib/api";
+import { PracticeTrendEChart } from "./components/PracticeTrendEChart";
+import { RecordTrendEChart } from "./components/RecordTrendEChart";
+import { RadarChart } from "./components/RadarChart";
+import { HeatmapChart } from "./components/HeatmapChart";
 
 type View = "home" | "dashboard" | "records" | "stats" | "calendar";
 type ThemeName = "night" | "dawn" | "pulse";
@@ -99,12 +104,158 @@ const recordTemplates = [
   { name: "图推 10 题", category: "graphic_reasoning", questionCount: 10, correctCount: 8, minutes: 12, issueTags: ["state"] }
 ];
 
+const viewOrder: View[] = ["dashboard", "records", "stats", "calendar"];
+
+function useSwipeNavigation(view: View, setView: (v: View) => void) {
+  const touchRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest(".echart-container")) return;
+      touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!touchRef.current) return;
+      const dx = e.changedTouches[0].clientX - touchRef.current.x;
+      const dy = e.changedTouches[0].clientY - touchRef.current.y;
+      const dt = Date.now() - touchRef.current.time;
+      touchRef.current = null;
+      if (Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < 60 || dt > 500) return;
+      const idx = viewOrder.indexOf(view);
+      if (idx === -1) return;
+      if (dx < 0 && idx < viewOrder.length - 1) setView(viewOrder[idx + 1]);
+      else if (dx > 0 && idx > 0) setView(viewOrder[idx - 1]);
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [view, setView]);
+}
+
+function usePullToRefresh(onRefresh: () => void) {
+  const [pulling, setPulling] = useState(false);
+  const startY = useRef(0);
+  useEffect(() => {
+    const onStart = (e: TouchEvent) => { startY.current = e.touches[0].clientY; };
+    const onMove = (e: TouchEvent) => {
+      if (window.scrollY > 0) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy > 60) setPulling(true);
+    };
+    const onEnd = () => {
+      if (pulling) { onRefresh(); setPulling(false); }
+    };
+    document.addEventListener("touchstart", onStart, { passive: true });
+    document.addEventListener("touchmove", onMove, { passive: true });
+    document.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+    };
+  }, [pulling, onRefresh]);
+  return pulling;
+}
+
+function QuickRecordFAB({ toast }: { toast: (msg: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState("data_analysis");
+  const [questionCount, setQuestionCount] = useState(20);
+  const [correctCount, setCorrectCount] = useState(18);
+  const [minutes, setMinutes] = useState(27);
+  const [selectedIssues, setSelectedIssues] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      await api("/practice-records", {
+        method: "POST",
+        body: JSON.stringify({
+          record_date: dateStr,
+          category,
+          question_count: questionCount,
+          correct_count: correctCount,
+          minutes,
+          issue_tags: selectedIssues,
+          note: "",
+        }),
+      });
+      toast("记录已保存");
+      setOpen(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleIssue = (tag: string) => {
+    setSelectedIssues((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  };
+
+  return (
+    <>
+      <button className="fab-btn" onClick={() => setOpen(true)} aria-label="快速记录">
+        <Plus size={24} />
+      </button>
+      {open && (
+        <div className="bottom-sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div className="bottom-sheet">
+            <div className="bottom-sheet-handle" />
+            <h3>快速做题记录</h3>
+            <div className="quick-category-pills">
+              {recordCategories.map((c) => (
+                <button key={c.category} className={`pill ${category === c.category ? "active" : ""}`} onClick={() => setCategory(c.category)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <div className="quick-inputs">
+              <label>
+                题量
+                <input type="number" inputMode="numeric" value={questionCount} onChange={(e) => setQuestionCount(Number(e.target.value))} min={0} />
+              </label>
+              <label>
+                正确
+                <input type="number" inputMode="numeric" value={correctCount} onChange={(e) => setCorrectCount(Number(e.target.value))} min={0} />
+              </label>
+              <label>
+                用时
+                <input type="number" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} min={0} />
+                <span>min</span>
+              </label>
+            </div>
+            <div className="quick-issue-chips">
+              {issueTags.map((i) => (
+                <button key={i.tag} className={`chip ${selectedIssues.includes(i.tag) ? "active" : ""}`} onClick={() => toggleIssue(i.tag)}>
+                  {i.label}
+                </button>
+              ))}
+            </div>
+            <button className="primary-btn" onClick={submit} disabled={saving}>
+              {saving ? "保存中..." : "保存记录"}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<View>("home");
   const [theme, setTheme] = useState<ThemeName>(() => (localStorage.getItem("dailyproof_theme") as ThemeName) || "dawn");
   const [booting, setBooting] = useState(true);
   const [toast, setToast] = useState("");
+
+  useSwipeNavigation(view, setView);
 
   useEffect(() => {
     localStorage.setItem("dailyproof_theme", theme);
@@ -169,6 +320,7 @@ function App() {
         />
       )}
       {user && <MobileNav view={view} setView={setView} />}
+      {user && <QuickRecordFAB toast={setToast} />}
       {toast && (
         <button className="toast" onClick={() => setToast("")}>
           {toast}
@@ -625,6 +777,136 @@ function CoachReportPanel({ monthly, records }: { monthly: MonthlyStats | null; 
   );
 }
 
+function AICoachPanel({ stats, recordStats }: { stats: MonthlyStats | null; recordStats: PracticeRecordStats | null }) {
+  const [coaching, setCoaching] = useState<AIResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const cacheKey = "dailyproof_ai_coaching";
+
+  const fetchCoaching = async () => {
+    setLoading(true);
+    try {
+      const summary = stats
+        ? `本月完成 ${stats.tasks_done}/${stats.tasks_total} 任务，刷题 ${stats.question_total} 道，平均正确率 ${stats.avg_accuracy}%，用时 ${stats.practice_minutes}min`
+        : "暂无统计数据";
+      const result = await api<AIResponse>("/ai/coaching", { method: "POST", body: JSON.stringify({ stats_summary: summary }) });
+      setCoaching(result);
+      if (result.content) sessionStorage.setItem(cacheKey, JSON.stringify(result));
+    } catch {
+      setCoaching({ available: false, message: "请求失败" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) { try { setCoaching(JSON.parse(cached)); return; } catch {} }
+    if (stats) fetchCoaching();
+  }, [stats !== null]);
+
+  return (
+    <section className="panel ai-coach-panel">
+      <div className="panel-title">
+        <h2><Brain size={18} /> AI 教练建议</h2>
+        <button className="soft-action" onClick={fetchCoaching} disabled={loading}>
+          <RefreshCw size={15} className={loading ? "spin" : ""} /> 刷新建议
+        </button>
+      </div>
+      {loading && <div className="ai-loading-skeleton"><div /><div /><div /></div>}
+      {!loading && coaching?.available === false && (
+        <div className="ai-unavailable-notice">{coaching.message || "未配置 DeepSeek API Key"}</div>
+      )}
+      {!loading && coaching?.content && (
+        <div className="ai-content">{coaching.content.split("\n").map((line, i) => line.trim() ? <p key={i}>{line}</p> : null)}</div>
+      )}
+      {!loading && !coaching && <div className="empty-state small">加载 AI 建议中...</div>}
+    </section>
+  );
+}
+
+function AIWeeklyReportButton({ stats, recordStats }: { stats: MonthlyStats | null; recordStats: PracticeRecordStats | null }) {
+  const [report, setReport] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+
+  const fetchReport = async () => {
+    setLoading(true);
+    setShowOverlay(true);
+    try {
+      const statsSummary = stats
+        ? `本月完成 ${stats.tasks_done}/${stats.tasks_total} 任务，刷题 ${stats.question_total} 道，平均正确率 ${stats.avg_accuracy}%，用时 ${stats.practice_minutes}min`
+        : "暂无统计数据";
+      const recordsSummary = recordStats
+        ? `记录 ${recordStats.summary.record_count} 次，题量 ${recordStats.summary.question_count}，正确率 ${recordStats.summary.accuracy ?? "-"}%`
+        : "暂无做题记录";
+      const result = await api<AIResponse>("/ai/weekly-report", { method: "POST", body: JSON.stringify({ stats_summary: statsSummary, records_summary: recordsSummary }) });
+      setReport(result.content || result.message || "无法生成周报");
+    } catch {
+      setReport("请求失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button className="soft-action" onClick={fetchReport} disabled={loading}>
+        <Sparkles size={15} /> AI 周报
+      </button>
+      {showOverlay && (
+        <div className="ai-weekly-report-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowOverlay(false); }}>
+          <div className="ai-weekly-report-content">
+            <div className="panel-title">
+              <h2>AI 周报</h2>
+              <button className="icon-btn" onClick={() => setShowOverlay(false)}>✕</button>
+            </div>
+            {loading && <div className="ai-loading-skeleton"><div /><div /><div /><div /></div>}
+            {!loading && report && (
+              <div className="ai-content">{report.split("\n").map((line, i) => line.trim() ? <p key={i}>{line}</p> : null)}</div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AIErrorAnalysisSection({ stats }: { stats: PracticeRecordStats | null }) {
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const fetchAnalysis = async () => {
+    if (analysis) { setExpanded(!expanded); return; }
+    setLoading(true);
+    setExpanded(true);
+    try {
+      const issueSummary = (stats?.issue_summary || []).map((i) => `${i.label}: ${i.count}次`).join("，") || "无错因标签";
+      const categorySummary = (stats?.category_summary || []).map((c) => `${c.label}: 正确率${c.accuracy ?? "-"}%，${c.question_count}题`).join("；") || "无分类数据";
+      const result = await api<AIResponse>("/ai/error-analysis", { method: "POST", body: JSON.stringify({ issue_summary: issueSummary, category_summary: categorySummary }) });
+      setAnalysis(result.content || result.message || "无法分析");
+    } catch {
+      setAnalysis("请求失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="ai-error-analysis-section">
+      <button className="text-btn" onClick={fetchAnalysis} disabled={loading}>
+        <Brain size={15} /> {loading ? "分析中..." : "AI 分析错因"}
+      </button>
+      {expanded && (
+        <div className="ai-content">
+          {loading && <div className="ai-loading-skeleton"><div /><div /></div>}
+          {!loading && analysis && analysis.split("\n").map((line, i) => line.trim() ? <p key={i}>{line}</p> : null)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ user, toast }: { user: User; toast: (message: string) => void }) {
   const [daily, setDaily] = useState<DailyPlan | null>(null);
   const [plans, setPlans] = useState<MonthlyPlan[]>([]);
@@ -726,6 +1008,7 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
       </div>
 
       <TodayReviewPanel daily={daily} monthly={stats} records={recordStats} plan={currentPlan} />
+      <AICoachPanel stats={stats} recordStats={recordStats} />
 
       <div className="workspace-grid">
         <section className="panel main-panel">
@@ -2252,8 +2535,8 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
       <RecordInsightPanel stats={stats} />
 
       <div className="record-chart-grid">
-        <RecordTrendChart title={scope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={stats} />
-        <RecordTrendChart title={scope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={stats} />
+        <RecordTrendEChart title={scope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={stats} />
+        <RecordTrendEChart title={scope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={stats} />
       </div>
 
       <section className="panel record-category-panel">
@@ -2465,6 +2748,8 @@ function PlanComposer({ onCreated, toast }: { onCreated: () => void; toast: (mes
   const [objective, setObjective] = useState("资料分析每套控制在 27 分钟内，正确率达到 90%；保持晚间健身和稳定复盘。");
   const [routine, setRoutine] = useState("18:00-20:30 健身（跑步 or 健身房）- 吃饭 - 回家\n20:00-21:00 刷一套资料分析 + 复盘\n21:00-22:00 刷一套资料分析 + 复盘\n22:00-23:00 学习，睡觉\n早上 7:00-8:00 数量关系10道 + 复盘");
   const [saving, setSaving] = useState(false);
+  const [showCategoryGoals, setShowCategoryGoals] = useState(false);
+  const [categoryGoals, setCategoryGoals] = useState<Record<string, { target_accuracy: number; target_minutes: number }> | null>(null);
 
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -2484,7 +2769,8 @@ function PlanComposer({ onCreated, toast }: { onCreated: () => void; toast: (mes
           target_accuracy: 90,
           routine_text: routine,
           blocks: [],
-          use_ai: true
+          use_ai: true,
+          category_goals: categoryGoals
         })
       });
       toast("月计划已生成每日任务");
@@ -2533,6 +2819,52 @@ function PlanComposer({ onCreated, toast }: { onCreated: () => void; toast: (mes
             时间安排
             <textarea value={routine} onChange={(event) => setRoutine(event.target.value)} rows={6} />
           </label>
+          <div className="category-goals-toggle">
+            <button type="button" className="text-btn" onClick={() => {
+              setShowCategoryGoals(!showCategoryGoals);
+              if (!showCategoryGoals && !categoryGoals) {
+                const defaults: Record<string, { target_accuracy: number; target_minutes: number }> = {};
+                recordCategories.forEach((c) => { defaults[c.category] = { target_accuracy: 90, target_minutes: 27 }; });
+                setCategoryGoals(defaults);
+              }
+            }}>
+              <Target size={15} /> {showCategoryGoals ? "收起分类目标" : "设置分类目标"}
+            </button>
+          </div>
+          {showCategoryGoals && categoryGoals && (
+            <div className="category-goals-grid">
+              {recordCategories.map((c, idx) => (
+                <div className="category-goal-card" key={c.category}>
+                  <i style={{ background: recordColors[idx] }} />
+                  <b>{c.label}</b>
+                  <label>
+                    正确率
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      value={categoryGoals[c.category]?.target_accuracy ?? 90}
+                      onChange={(e) => setCategoryGoals({ ...categoryGoals, [c.category]: { ...categoryGoals[c.category], target_accuracy: Number(e.target.value) } })}
+                    />
+                    <span>%</span>
+                  </label>
+                  <label>
+                    用时
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={240}
+                      value={categoryGoals[c.category]?.target_minutes ?? 27}
+                      onChange={(e) => setCategoryGoals({ ...categoryGoals, [c.category]: { ...categoryGoals[c.category], target_minutes: Number(e.target.value) } })}
+                    />
+                    <span>min</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
           <button className="primary-btn" onClick={submit} disabled={saving}>
             {saving ? "生成中..." : "生成每日任务"}
           </button>
@@ -2637,6 +2969,7 @@ function StatsCenter() {
             </>
           )}
           {mode === "records" && <span className="range-summary-chip">{selectedRecordRange.start} 至 {selectedRecordRange.end}</span>}
+          <AIWeeklyReportButton stats={stats} recordStats={recordStats} />
         </div>
       </div>
       <div className="analytics-toolbar">
@@ -2693,13 +3026,15 @@ function StatsCenter() {
           />
           <DetailedComparisonPanel stats={recordStats} />
           <IssueProfilePanel stats={recordStats} />
+          <AIErrorAnalysisSection stats={recordStats} />
           <TrendAlertPanel stats={recordStats} />
           <CoachReportPanel monthly={stats} records={recordStats} />
           <RecordInsightPanel stats={recordStats} />
           <div className="record-chart-grid analytics-record-charts">
-            <RecordTrendChart title={`${selectedRecordRange.label}用时`} metric="minutes" stats={recordStats} />
-            <RecordTrendChart title={`${selectedRecordRange.label}正确率`} metric="accuracy" stats={recordStats} />
+            <RecordTrendEChart title={`${selectedRecordRange.label}用时`} metric="minutes" stats={recordStats} />
+            <RecordTrendEChart title={`${selectedRecordRange.label}正确率`} metric="accuracy" stats={recordStats} />
           </div>
+          <RadarChart stats={recordStats} />
           <section className="panel record-category-panel analytics-record-category">
             <div className="panel-title">
               <h2>记录板块表现</h2>
@@ -2766,7 +3101,7 @@ function StatsCenter() {
           </section>
           <div className="attempt-trend-grid">
             {trendGroups.map((group) => (
-              <PracticeTrendChart key={group.tag} title={group.title} points={group.points} />
+              <PracticeTrendEChart key={group.tag} title={group.title} points={group.points} />
             ))}
           </div>
           <div className="stats-grid">
@@ -2827,9 +3162,11 @@ function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(toDateKey(initial));
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [selectedDaily, setSelectedDaily] = useState<DailyPlan | null>(null);
+  const [calendarRecords, setCalendarRecords] = useState<PracticeRecord[]>([]);
 
   useEffect(() => {
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats);
+    api<PracticeRecord[]>(`/practice-records?year=${year}&month=${month}`).then(setCalendarRecords).catch(() => setCalendarRecords([]));
   }, [year, month]);
 
   useEffect(() => {
@@ -2946,15 +3283,10 @@ function CalendarPage() {
           </div>
         </aside>
       </div>
+      <HeatmapChart records={calendarRecords} year={year} month={month} />
     </main>
   );
 }
-
-type CalendarCell = {
-  date: Date;
-  dateKey: string;
-  inMonth: boolean;
-};
 
 function toDateKey(value: Date) {
   const year = value.getFullYear();
@@ -2962,6 +3294,12 @@ function toDateKey(value: Date) {
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+type CalendarCell = {
+  date: Date;
+  dateKey: string;
+  inMonth: boolean;
+};
 
 function buildCalendarCells(year: number, month: number): CalendarCell[] {
   const first = new Date(year, month - 1, 1);

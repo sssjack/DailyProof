@@ -6,6 +6,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
+class CategoryGoal(BaseModel):
+    target_accuracy: float = Field(default=90.0, ge=0, le=100)
+    target_minutes: int = Field(default=27, ge=1, le=240)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -55,6 +60,7 @@ class MonthlyPlanCreate(BaseModel):
     routine_text: str = ""
     blocks: list[PlanBlockIn] = []
     use_ai: bool = False
+    category_goals: dict[str, CategoryGoal] | None = None
 
 
 class TaskPatch(BaseModel):
@@ -114,6 +120,20 @@ class PlanSuggestionRequest(BaseModel):
     routine_text: str
     target_minutes: int = 27
     target_accuracy: float = 90.0
+
+
+class CoachingRequest(BaseModel):
+    stats_summary: str
+
+
+class WeeklyReportRequest(BaseModel):
+    stats_summary: str
+    records_summary: str
+
+
+class ErrorAnalysisRequest(BaseModel):
+    issue_summary: str
+    category_summary: str
 
 
 JsonDict = dict[str, Any]

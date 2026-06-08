@@ -80,6 +80,7 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     task_columns = {column["name"] for column in inspector.get_columns("daily_tasks")}
     block_columns = {column["name"] for column in inspector.get_columns("plan_template_blocks")}
     record_columns = {column["name"] for column in inspector.get_columns("practice_records")} if inspector.has_table("practice_records") else set()
+    plan_columns = {column["name"] for column in inspector.get_columns("monthly_plans")}
 
     varchar = "VARCHAR(40)" if engine.dialect.name == "postgresql" else "VARCHAR(40)"
     float_type = "DOUBLE PRECISION" if engine.dialect.name == "postgresql" else "FLOAT"
@@ -107,6 +108,9 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
             connection.exec_driver_sql("ALTER TABLE practice_records ADD COLUMN correct_count INTEGER DEFAULT 0")
         if "issue_tags" not in record_columns:
             connection.exec_driver_sql("ALTER TABLE practice_records ADD COLUMN issue_tags JSON DEFAULT '[]'")
+
+    if "category_goals" not in plan_columns:
+        connection.exec_driver_sql("ALTER TABLE monthly_plans ADD COLUMN category_goals JSON")
 
     practice_categories = (
         "'data_analysis', 'quantitative', 'verbal', 'graphic_reasoning', "

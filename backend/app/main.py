@@ -13,6 +13,8 @@ from app import models
 from app.db import get_db, init_db
 from app.schemas import (
     CheckInRequest,
+    CoachingRequest,
+    ErrorAnalysisRequest,
     LoginRequest,
     MonthlyPlanCreate,
     PracticeRecordCreate,
@@ -21,7 +23,9 @@ from app.schemas import (
     TaskPatch,
     TokenResponse,
     UserOut,
+    WeeklyReportRequest,
 )
+from app.ai import generate_coaching, generate_error_analysis, generate_weekly_report, is_ai_available
 from app.security import create_access_token, verify_password, hash_password
 from app.services import (
     admin_overview,
@@ -29,6 +33,7 @@ from app.services import (
     ensure_daily_plan_for,
     generate_daily_plans,
     local_today,
+    practice_record_distribution,
     serialize_daily_plan,
     serialize_plan,
     serialize_task,
@@ -345,6 +350,16 @@ def delete_practice_record(
     return {"ok": True}
 
 
+@app.get(f"{settings.api_path}/practice-records/stats/distribution")
+def practice_record_distribution_endpoint(
+    start_date: date,
+    end_date: date,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return practice_record_distribution(db, user.id, start_date, end_date)
+
+
 @app.get(f"{settings.api_path}/practice-records/stats")
 def practice_record_stats(
     scope: str = "week",
@@ -365,6 +380,45 @@ def practice_record_stats(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@app.post(f"{settings.api_path}/ai/coaching")
+def ai_coaching(
+    payload: CoachingRequest,
+    _: models.User = Depends(current_user),
+) -> dict:
+    if not is_ai_available():
+        return {"available": False, "message": "未配置 DeepSeek API Key"}
+    content = generate_coaching(payload.stats_summary)
+    if content is None:
+        return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}
+    return {"available": True, "content": content}
+
+
+@app.post(f"{settings.api_path}/ai/weekly-report")
+def ai_weekly_report(
+    payload: WeeklyReportRequest,
+    _: models.User = Depends(current_user),
+) -> dict:
+    if not is_ai_available():
+        return {"available": False, "message": "未配置 DeepSeek API Key"}
+    content = generate_weekly_report(payload.stats_summary, payload.records_summary)
+    if content is None:
+        return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}
+    return {"available": True, "content": content}
+
+
+@app.post(f"{settings.api_path}/ai/error-analysis")
+def ai_error_analysis(
+    payload: ErrorAnalysisRequest,
+    _: models.User = Depends(current_user),
+) -> dict:
+    if not is_ai_available():
+        return {"available": False, "message": "未配置 DeepSeek API Key"}
+    content = generate_error_analysis(payload.issue_summary, payload.category_summary)
+    if content is None:
+        return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}
+    return {"available": True, "content": content}
 
 
 @app.get(f"{settings.api_path}/admin/overview")

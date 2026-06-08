@@ -44,6 +44,7 @@ export type MonthlyPlan = {
   objective: string;
   target_minutes: number;
   target_accuracy: number;
+  category_goals: Record<string, CategoryGoal> | null;
   routine_text: string;
   status: string;
   blocks: Array<{
@@ -268,4 +269,34 @@ export const categoryLabel = (category: string) => {
     life: "生活"
   };
   return map[category] || category;
+};
+
+export type CategoryGoal = {
+  target_accuracy: number;
+  target_minutes: number;
+};
+
+export type AIResponse = {
+  available: boolean;
+  content?: string | null;
+  message?: string;
+};
+
+export type DistributionStats = {
+  start: string;
+  end: string;
+  accuracy_distribution: Array<{ range: string; count: number }>;
+  time_per_question_trend: Array<{
+    period: string;
+    label: string;
+    minutes_per_question: number | null;
+    total_minutes: number;
+    total_questions: number;
+  }>;
+  yoy_comparison: {
+    current: PracticeRecordPeriodSummary;
+    previous: PracticeRecordPeriodSummary;
+    previous_year: number;
+    current_year: number;
+  } | null;
 };
