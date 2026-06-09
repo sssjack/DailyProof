@@ -2309,6 +2309,10 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const [editTitles, setEditTitles] = useState<Record<number, string>>({});
   const [currentPage, setCurrentPage] = useState(0);
   const [turningPage, setTurningPage] = useState(false);
+  const [turnDirection, setTurnDirection] = useState<1 | -1>(1);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddText, setQuickAddText] = useState("");
+  const [quickAdding, setQuickAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
@@ -2349,6 +2353,8 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     setEditMode(false);
     setCurrentPage(0);
     setDraft("");
+    setQuickAddOpen(false);
+    setQuickAddText("");
   }, [noteDate]);
 
   useEffect(() => {
@@ -2379,6 +2385,31 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
       toast(err instanceof Error ? err.message : "保存便签失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addQuickItem = async () => {
+    const title = quickAddText.trim();
+    if (!title) {
+      toast("先写下一条事项");
+      return;
+    }
+    setQuickAdding(true);
+    try {
+      const nextNote = await api<StickyNote>("/sticky-notes/items", {
+        method: "POST",
+        body: JSON.stringify({ note_date: noteDate, text: title })
+      });
+      setNote(nextNote);
+      setQuickAddText("");
+      setQuickAddOpen(false);
+      setCurrentPage(Math.max(0, Math.ceil(nextNote.items.length / STICKY_ITEMS_PER_PAGE) - 1));
+      await loadHistory();
+      toast("已新增事项");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "新增事项失败");
+    } finally {
+      setQuickAdding(false);
     }
   };
 
@@ -2448,12 +2479,11 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
 
   const turnPage = (direction: 1 | -1) => {
     const nextPage = currentPage + direction;
-    if (nextPage < 0 || nextPage >= totalPages) return;
+    if (turningPage || nextPage < 0 || nextPage >= totalPages) return;
+    setTurnDirection(direction);
     setTurningPage(true);
-    window.setTimeout(() => {
-      setCurrentPage(nextPage);
-      setTurningPage(false);
-    }, 180);
+    window.setTimeout(() => setCurrentPage(nextPage), 270);
+    window.setTimeout(() => setTurningPage(false), 640);
   };
 
   const refreshAdvice = async () => {
@@ -2518,7 +2548,8 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
         </section>
       ) : (
       <div className="sticky-layout">
-        <section className={`sticky-paper ${turningPage ? "turning" : ""}`}>
+        <section className={`sticky-paper ${turningPage ? "turning" : ""}`} data-turn={turnDirection === 1 ? "next" : "prev"}>
+          <span className="sticky-turn-sheet" aria-hidden="true" />
           <div className="sticky-binding" aria-hidden="true">
             {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
           </div>
@@ -2560,7 +2591,8 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
 
           <div className="sticky-list">
             {pageItems.length ? (
-              pageItems.map((item) => (
+              <>
+              {pageItems.map((item) => (
                 <article className={`sticky-task ${item.is_done ? "done" : ""} ${togglingId === item.id ? "just-toggled" : ""}`} key={item.id}>
                   <button
                     className="sticky-check"
@@ -2591,7 +2623,48 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
                   </button>
                   ) : <span className="sticky-task-spacer" />}
                 </article>
-              ))
+              ))}
+              {canEdit && !editMode && !shouldShowDraft && currentPage === totalPages - 1 ? (
+                quickAddOpen ? (
+                  <div className="sticky-quick-add">
+                    <span className="sticky-quick-mark"><Plus size={15} /></span>
+                    <input
+                      autoFocus
+                      value={quickAddText}
+                      placeholder="继续写一项今日事项"
+                      onChange={(event) => setQuickAddText(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") addQuickItem();
+                        if (event.key === "Escape") {
+                          setQuickAddOpen(false);
+                          setQuickAddText("");
+                        }
+                      }}
+                    />
+                    <div className="sticky-quick-actions">
+                      <button type="button" onClick={addQuickItem} disabled={quickAdding}>
+                        {quickAdding ? "保存中" : "保存"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickAddOpen(false);
+                          setQuickAddText("");
+                        }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="sticky-add-row" type="button" onClick={() => setQuickAddOpen(true)}>
+                    <span><Plus size={15} /></span>
+                    <b>新增一项</b>
+                    <i />
+                  </button>
+                )
+              ) : null}
+              </>
             ) : (
               <div className="sticky-empty">
                 <b>今天还没有事项</b>
@@ -2601,16 +2674,17 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </div>
 
           <div className="sticky-page-controls">
-            <button type="button" onClick={() => turnPage(-1)} disabled={currentPage === 0}>上一页</button>
+            <button type="button" onClick={() => turnPage(-1)} disabled={turningPage || currentPage === 0}>上一页</button>
             <span>第 {currentPage + 1} / {totalPages} 页</span>
-            <button type="button" onClick={() => turnPage(1)} disabled={currentPage >= totalPages - 1}>下一页</button>
+            <button type="button" onClick={() => turnPage(1)} disabled={turningPage || currentPage >= totalPages - 1}>下一页</button>
           </div>
-          <button className="sticky-page-curl" type="button" title="翻页" onClick={() => turnPage(currentPage >= totalPages - 1 ? -1 : 1)}>
+          <button className="sticky-page-curl" type="button" title="翻页" onClick={() => turnPage(currentPage >= totalPages - 1 ? -1 : 1)} disabled={turningPage}>
             <span>{currentPage + 1}</span>
           </button>
 
         </section>
 
+        <aside className="sticky-right-rail">
         <div className={`sticky-advice ${adviceIsAi ? "is-ai" : "is-fallback"}`}>
           <div>
             <span>{adviceLabel}</span>
@@ -2646,6 +2720,7 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
             ))}
             {!note?.items.length && <span>还没有写下事项</span>}
           </div>
+        </aside>
         </aside>
       </div>
       )}
