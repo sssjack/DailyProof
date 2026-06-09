@@ -200,6 +200,29 @@ export type PracticeRecordStats = {
   records: PracticeRecord[];
 };
 
+export type StickyNoteItem = {
+  id: number;
+  title: string;
+  is_done: boolean;
+  sort_order: number;
+  completed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type StickyNote = {
+  id: number;
+  date: string;
+  ai_advice: string;
+  advice_generated_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  item_count: number;
+  done_count: number;
+  pending_count: number;
+  items: StickyNoteItem[];
+};
+
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/DailyProof/api").replace(/\/$/, "");
 const TOKEN_KEY = "dailyproof_token";
 

@@ -134,6 +134,36 @@ class PracticeRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class StickyNote(Base):
+    __tablename__ = "sticky_notes"
+    __table_args__ = (UniqueConstraint("user_id", "note_date", name="uq_sticky_note_user_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    note_date: Mapped[date] = mapped_column(Date, index=True)
+    ai_advice: Mapped[str] = mapped_column(Text, default="")
+    advice_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    items: Mapped[list["StickyNoteItem"]] = relationship(back_populates="note", cascade="all, delete-orphan")
+
+
+class StickyNoteItem(Base):
+    __tablename__ = "sticky_note_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sticky_note_id: Mapped[int] = mapped_column(ForeignKey("sticky_notes.id", ondelete="CASCADE"), index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(240))
+    is_done: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    note: Mapped[StickyNote] = relationship(back_populates="items")
+
+
 class Question(Base):
     __tablename__ = "questions"
 

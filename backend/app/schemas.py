@@ -99,6 +99,17 @@ class PracticeRecordPatch(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class StickyNoteItemsCreate(BaseModel):
+    note_date: date
+    text: str = Field(min_length=1, max_length=3000)
+
+
+class StickyNoteItemPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    is_done: bool | None = None
+    sort_order: int | None = Field(default=None, ge=0, le=10000)
+
+
 class PracticeStartRequest(BaseModel):
     category: str = Field(default="data_analysis")
     question_count: int = Field(default=10, ge=1, le=30)

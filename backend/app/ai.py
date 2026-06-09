@@ -158,3 +158,15 @@ def generate_error_analysis(issue_summary: str, category_summary: str) -> str | 
         temperature=0.3,
         max_tokens=1000,
     )
+
+
+def generate_sticky_advice(note_date: str, items_summary: str) -> str | None:
+    system_prompt = """你是 DailyProof 的便签清单教练。
+根据用户某一天的事项清单，输出 3 条简短、具体、温和的中文建议。
+建议要包含完成顺序、注意事项或节奏提醒。不要输出 Markdown 标题，不要超过 160 字。"""
+    return _call_deepseek(
+        system_prompt=system_prompt,
+        user_prompt=f"日期：{note_date}\n清单：\n{items_summary}",
+        temperature=0.35,
+        max_tokens=320,
+    )

@@ -20,6 +20,8 @@ from app.schemas import (
     PracticeRecordCreate,
     PracticeRecordPatch,
     RegisterRequest,
+    StickyNoteItemPatch,
+    StickyNoteItemsCreate,
     TaskPatch,
     TokenResponse,
     UserOut,
@@ -43,9 +45,15 @@ from app.services import (
     user_month_stats,
     create_monthly_plan,
     create_practice_record,
+    add_sticky_note_items,
+    ensure_sticky_note,
     practice_record_queryset,
+    refresh_sticky_note_advice,
+    list_sticky_notes,
     serialize_practice_record,
+    serialize_sticky_note,
     update_practice_record,
+    utc_now,
     user_practice_record_stats,
 )
 from app.settings import settings
@@ -235,6 +243,115 @@ def checkin(
     item.note = payload.note
     db.commit()
     return {"id": item.id, "date": item.checkin_date.isoformat(), "mood": item.mood, "energy": item.energy, "note": item.note}
+
+
+@app.get(f"{settings.api_path}/sticky-notes")
+def get_sticky_note(
+    day: date | None = None,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    target = day or local_today()
+    note = ensure_sticky_note(db, user.id, target)
+    if not note.ai_advice:
+        note = refresh_sticky_note_advice(db, note)
+    db.commit()
+    note = ensure_sticky_note(db, user.id, target)
+    return serialize_sticky_note(note)
+
+
+@app.get(f"{settings.api_path}/sticky-notes/range")
+def get_sticky_notes_range(
+    start_date: date,
+    end_date: date,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return [serialize_sticky_note(note) for note in list_sticky_notes(db, user.id, start_date, end_date)]
+
+
+@app.post(f"{settings.api_path}/sticky-notes/items")
+def create_sticky_note_items(
+    payload: StickyNoteItemsCreate,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        note = add_sticky_note_items(db, user.id, payload.note_date, payload.text)
+    except ValueError as exc:
+        if str(exc) == "empty_sticky_items":
+            raise HTTPException(status_code=422, detail="请输入至少一条事项") from exc
+        raise
+    db.commit()
+    note = ensure_sticky_note(db, user.id, payload.note_date)
+    return serialize_sticky_note(note)
+
+
+@app.patch(f"{settings.api_path}/sticky-notes/items/{{item_id}}")
+def patch_sticky_note_item(
+    item_id: int,
+    payload: StickyNoteItemPatch,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    item = (
+        db.query(models.StickyNoteItem)
+        .join(models.StickyNote, models.StickyNoteItem.sticky_note_id == models.StickyNote.id)
+        .filter(models.StickyNoteItem.id == item_id, models.StickyNote.user_id == user.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="便签事项不存在")
+    if payload.title is not None:
+        title = payload.title.strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="事项内容不能为空")
+        item.title = title
+    if payload.sort_order is not None:
+        item.sort_order = payload.sort_order
+    if payload.is_done is not None and bool(item.is_done) != payload.is_done:
+        item.is_done = payload.is_done
+        item.completed_at = utc_now() if payload.is_done else None
+    db.flush()
+    note = db.query(models.StickyNote).options(selectinload(models.StickyNote.items)).get(item.sticky_note_id)
+    db.commit()
+    note = ensure_sticky_note(db, user.id, note.note_date)
+    return serialize_sticky_note(note)
+
+
+@app.delete(f"{settings.api_path}/sticky-notes/items/{{item_id}}")
+def delete_sticky_note_item(
+    item_id: int,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    item = (
+        db.query(models.StickyNoteItem)
+        .join(models.StickyNote, models.StickyNoteItem.sticky_note_id == models.StickyNote.id)
+        .filter(models.StickyNoteItem.id == item_id, models.StickyNote.user_id == user.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="便签事项不存在")
+    note_date = item.note.note_date
+    db.delete(item)
+    db.flush()
+    db.commit()
+    note = ensure_sticky_note(db, user.id, note_date)
+    return serialize_sticky_note(note)
+
+
+@app.post(f"{settings.api_path}/sticky-notes/{{note_date}}/advice")
+def regenerate_sticky_note_advice(
+    note_date: date,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    note = ensure_sticky_note(db, user.id, note_date)
+    note = refresh_sticky_note_advice(db, note)
+    db.commit()
+    note = ensure_sticky_note(db, user.id, note_date)
+    return serialize_sticky_note(note)
 
 
 @app.get(f"{settings.api_path}/stats/monthly")

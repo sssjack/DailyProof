@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app import models
-from app.ai import suggest_plan_blocks
+from app.ai import generate_sticky_advice, suggest_plan_blocks
 from app.schemas import MonthlyPlanCreate, PlanBlockIn
 from app.security import hash_password
 from app.settings import settings
@@ -909,6 +909,131 @@ def serialize_practice_record(record: models.PracticeRecord) -> dict:
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
     }
+
+
+def serialize_sticky_note_item(item: models.StickyNoteItem) -> dict:
+    return {
+        "id": item.id,
+        "title": item.title,
+        "is_done": bool(item.is_done),
+        "sort_order": item.sort_order,
+        "completed_at": item.completed_at.isoformat() if item.completed_at else None,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+
+def serialize_sticky_note(note: models.StickyNote) -> dict:
+    items = sorted(note.items or [], key=lambda item: (item.sort_order, item.id))
+    done_count = sum(1 for item in items if item.is_done)
+    return {
+        "id": note.id,
+        "date": note.note_date.isoformat(),
+        "ai_advice": note.ai_advice or "",
+        "advice_generated_at": note.advice_generated_at.isoformat() if note.advice_generated_at else None,
+        "created_at": note.created_at.isoformat() if note.created_at else None,
+        "updated_at": note.updated_at.isoformat() if note.updated_at else None,
+        "item_count": len(items),
+        "done_count": done_count,
+        "pending_count": max(0, len(items) - done_count),
+        "items": [serialize_sticky_note_item(item) for item in items],
+    }
+
+
+def sticky_note_query(db: Session, user_id: int, target_date: date) -> models.StickyNote | None:
+    return (
+        db.query(models.StickyNote)
+        .options(selectinload(models.StickyNote.items))
+        .filter_by(user_id=user_id, note_date=target_date)
+        .first()
+    )
+
+
+def ensure_sticky_note(db: Session, user_id: int, target_date: date) -> models.StickyNote:
+    note = sticky_note_query(db, user_id, target_date)
+    if note:
+        return note
+    note = models.StickyNote(user_id=user_id, note_date=target_date)
+    db.add(note)
+    db.flush()
+    db.refresh(note)
+    return note
+
+
+def parse_sticky_lines(text: str) -> list[str]:
+    items: list[str] = []
+    seen: set[str] = set()
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        title = line.strip()
+        title = title.lstrip("-*•· 　").strip()
+        title = title.removeprefix("[ ]").removeprefix("[x]").removeprefix("[X]").strip()
+        if not title:
+            continue
+        normalized = " ".join(title.split()).lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        items.append(title[:240])
+    return items[:40]
+
+
+def fallback_sticky_advice(note_date: date, items: list[models.StickyNoteItem]) -> str:
+    pending = [item.title for item in sorted(items, key=lambda item: (item.sort_order, item.id)) if not item.is_done]
+    done_count = sum(1 for item in items if item.is_done)
+    if not items:
+        return "先写下 3 件最值得完成的事：一件必须做、一件能快速推进、一件用于收尾。清单越清楚，执行越轻。"
+    if not pending:
+        return "今天的便签已经清空。建议用 3 分钟补一句复盘：哪件事最有价值，哪件事下次可以提前安排。"
+    first = pending[0]
+    second = pending[1] if len(pending) > 1 else ""
+    rhythm = "先做最小闭环，再处理耗时长的事项" if len(pending) >= 4 else "保持轻量推进，完成一项就马上划掉"
+    detail = f"优先从「{first}」开始"
+    if second:
+        detail += f"，再接「{second}」"
+    return f"{detail}。今天还剩 {len(pending)} 项，已完成 {done_count} 项；{rhythm}，避免把便签变成压力清单。"
+
+
+def refresh_sticky_note_advice(db: Session, note: models.StickyNote) -> models.StickyNote:
+    items = sorted(note.items or [], key=lambda item: (item.sort_order, item.id))
+    item_summary = "\n".join(
+        f"- {'已完成' if item.is_done else '未完成'}：{item.title}"
+        for item in items
+    )
+    content = generate_sticky_advice(note.note_date.isoformat(), item_summary) if items else None
+    note.ai_advice = (content or fallback_sticky_advice(note.note_date, items)).strip()
+    note.advice_generated_at = utc_now()
+    db.flush()
+    db.refresh(note)
+    return note
+
+
+def add_sticky_note_items(db: Session, user_id: int, note_date: date, text: str) -> models.StickyNote:
+    titles = parse_sticky_lines(text)
+    if not titles:
+        raise ValueError("empty_sticky_items")
+    note = ensure_sticky_note(db, user_id, note_date)
+    start_order = max([item.sort_order for item in note.items] or [-1]) + 1
+    for offset, title in enumerate(titles):
+        db.add(models.StickyNoteItem(sticky_note_id=note.id, sort_order=start_order + offset, title=title))
+    db.flush()
+    note = sticky_note_query(db, user_id, note_date) or note
+    return refresh_sticky_note_advice(db, note)
+
+
+def list_sticky_notes(db: Session, user_id: int, start: date, end: date) -> list[models.StickyNote]:
+    if end < start:
+        start, end = end, start
+    return (
+        db.query(models.StickyNote)
+        .options(selectinload(models.StickyNote.items))
+        .filter(
+            models.StickyNote.user_id == user_id,
+            models.StickyNote.note_date >= start,
+            models.StickyNote.note_date <= end,
+        )
+        .order_by(models.StickyNote.note_date.desc())
+        .all()
+    )
 
 
 def practice_record_queryset(db: Session, user_id: int, start: date, end: date) -> list[models.PracticeRecord]:

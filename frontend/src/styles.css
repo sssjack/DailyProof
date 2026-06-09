@@ -4724,8 +4724,8 @@ select {
     left: 12px;
     z-index: 42;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
     border: 1px solid var(--line);
     border-radius: 24px;
     padding: 7px;
@@ -4737,7 +4737,7 @@ select {
   .mobile-tabbar button {
     display: grid;
     min-width: 0;
-    min-height: 48px;
+    min-height: 46px;
     place-items: center;
     gap: 3px;
     border: 0;
@@ -4754,7 +4754,7 @@ select {
   .mobile-tabbar span {
     max-width: 100%;
     overflow: hidden;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 900;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -5182,6 +5182,503 @@ select {
 @media (max-width: 820px) {
   .fab-btn {
     display: flex;
+  }
+}
+
+/* ─── Sticky Notes ─── */
+.sticky-workspace {
+  --note-paper: #fff4b8;
+  --note-paper-deep: #ffe98f;
+  --note-ink: #1e293b;
+  --note-muted: #6b6546;
+  --note-line: rgba(98, 79, 18, 0.16);
+}
+
+.app-shell[data-theme="night"] .sticky-workspace,
+.app-shell[data-theme="pulse"] .sticky-workspace {
+  --note-paper: #fff0a8;
+  --note-paper-deep: #f8dc75;
+  --note-ink: #1a2331;
+  --note-muted: #675b35;
+  --note-line: rgba(91, 68, 14, 0.18);
+}
+
+.sticky-head {
+  align-items: end;
+}
+
+.sticky-date-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sticky-date-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel-solid) 80%, transparent);
+  font-weight: 900;
+}
+
+.sticky-date-controls .text-btn {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.sticky-date-controls .text-btn.active {
+  color: var(--note-ink);
+  border-color: color-mix(in srgb, var(--second) 52%, transparent);
+  background: var(--note-paper);
+}
+
+.sticky-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.sticky-paper {
+  position: relative;
+  overflow: hidden;
+  padding: 34px clamp(18px, 3vw, 34px) 26px;
+  border: 1px solid color-mix(in srgb, var(--second) 34%, transparent);
+  border-radius: 8px;
+  color: var(--note-ink);
+  background:
+    linear-gradient(transparent 0 31px, var(--note-line) 32px),
+    linear-gradient(135deg, var(--note-paper), var(--note-paper-deep));
+  background-size: 100% 32px, auto;
+  box-shadow:
+    0 24px 50px rgba(83, 67, 18, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.sticky-paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.34;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(97, 73, 13, 0.08) 0 1px, transparent 1px),
+    radial-gradient(circle at 72% 42%, rgba(97, 73, 13, 0.07) 0 1px, transparent 1px);
+  background-size: 22px 22px, 28px 28px;
+}
+
+.sticky-tape {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 1;
+  width: 118px;
+  height: 28px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 5px 16px rgba(88, 63, 8, 0.12);
+  transform: translateX(-50%) rotate(-2deg);
+}
+
+.sticky-paper-head,
+.sticky-draft,
+.sticky-list,
+.sticky-advice {
+  position: relative;
+  z-index: 2;
+}
+
+.sticky-paper-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px 0 18px;
+}
+
+.sticky-paper-head span,
+.sticky-advice span,
+.sticky-draft-foot span {
+  color: var(--note-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.sticky-paper-head h2 {
+  margin: 4px 0 0;
+  font-family: "Comic Sans MS", "STKaiti", "KaiTi", "LXGW WenKai", cursive;
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sticky-progress {
+  display: grid;
+  min-width: 76px;
+  place-items: center;
+  padding: 11px 12px;
+  border: 1px solid rgba(100, 75, 17, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.sticky-progress b {
+  font-family: var(--title-font);
+  font-size: 1.35rem;
+}
+
+.sticky-progress span {
+  font-size: 0.78rem;
+}
+
+.sticky-draft {
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid rgba(100, 75, 17, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.sticky-draft textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 132px;
+  border: 0;
+  outline: 0;
+  color: var(--note-ink);
+  background: transparent;
+  font-family: "Comic Sans MS", "STKaiti", "KaiTi", "LXGW WenKai", cursive;
+  font-size: 1.25rem;
+  line-height: 1.72;
+}
+
+.sticky-draft textarea::placeholder {
+  color: rgba(71, 63, 38, 0.58);
+}
+
+.sticky-draft-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+}
+
+.sticky-list {
+  display: grid;
+  gap: 9px;
+  min-height: 160px;
+}
+
+.sticky-task {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  color: var(--note-ink);
+}
+
+.sticky-check,
+.sticky-delete {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(63, 50, 18, 0.18);
+  border-radius: 50%;
+  color: var(--note-ink);
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.sticky-check:hover,
+.sticky-delete:hover {
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.sticky-task.done .sticky-check {
+  color: #0f5132;
+  border-color: rgba(15, 81, 50, 0.26);
+  background: rgba(126, 211, 33, 0.2);
+}
+
+.sticky-task-text {
+  position: relative;
+  min-width: 0;
+  color: var(--note-ink);
+  font-family: "Comic Sans MS", "STKaiti", "KaiTi", "LXGW WenKai", cursive;
+  font-size: clamp(1.05rem, 2vw, 1.28rem);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.sticky-task.done .sticky-task-text {
+  color: rgba(30, 41, 59, 0.58);
+}
+
+.sticky-task.done .sticky-task-text::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 54%;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(58, 44, 16, 0.2), rgba(25, 35, 50, 0.72), rgba(58, 44, 16, 0.18));
+  transform: rotate(-1deg);
+  transform-origin: left center;
+  animation: ink-strike 0.36s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@keyframes ink-strike {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.sticky-delete {
+  opacity: 0.58;
+}
+
+.sticky-task:hover .sticky-delete {
+  opacity: 1;
+}
+
+.sticky-empty {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  border: 1px dashed rgba(91, 68, 14, 0.22);
+  border-radius: 8px;
+  color: var(--note-muted);
+  text-align: center;
+}
+
+.sticky-empty b {
+  color: var(--note-ink);
+  font-family: "Comic Sans MS", "STKaiti", "KaiTi", "LXGW WenKai", cursive;
+  font-size: 1.35rem;
+}
+
+.sticky-advice {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid rgba(91, 68, 14, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.sticky-advice > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sticky-advice .text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(91, 68, 14, 0.14);
+  border-radius: 8px;
+  color: var(--note-ink);
+}
+
+.sticky-advice p {
+  margin: 9px 0 0;
+  color: var(--note-ink);
+  font-size: 0.96rem;
+  line-height: 1.7;
+}
+
+.sticky-side-panel {
+  position: sticky;
+  top: 84px;
+}
+
+.sticky-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sticky-status-grid div {
+  display: grid;
+  gap: 2px;
+  padding: 13px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+  background: color-mix(in srgb, var(--panel-solid) 56%, transparent);
+}
+
+.sticky-status-grid b {
+  color: var(--text);
+  font-family: var(--title-font);
+  font-size: 1.45rem;
+}
+
+.sticky-status-grid span,
+.sticky-preview-lines span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sticky-preview-lines {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sticky-preview-lines span {
+  padding: 8px 10px;
+  border-left: 3px solid color-mix(in srgb, var(--second) 62%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--second) 9%, transparent);
+}
+
+.sticky-preview-lines span.done {
+  opacity: 0.62;
+  text-decoration: line-through;
+}
+
+.sticky-history-wall {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--line) 30%, transparent) 24px),
+    linear-gradient(180deg, transparent 0 23px, color-mix(in srgb, var(--line) 30%, transparent) 24px),
+    color-mix(in srgb, var(--panel-solid) 88%, transparent);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+
+.sticky-wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.sticky-wall-card {
+  position: relative;
+  display: grid;
+  min-height: 136px;
+  padding: 18px 16px 14px;
+  border: 1px solid rgba(98, 79, 18, 0.14);
+  border-radius: 6px;
+  color: var(--note-ink);
+  text-align: left;
+  background: linear-gradient(135deg, var(--note-paper), var(--note-paper-deep));
+  box-shadow: 0 12px 26px rgba(35, 27, 9, 0.16);
+  transform: rotate(var(--rotate));
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.sticky-wall-card:hover,
+.sticky-wall-card.active {
+  transform: rotate(0deg) translateY(-4px);
+  box-shadow: 0 18px 34px rgba(35, 27, 9, 0.2);
+}
+
+.sticky-wall-card span {
+  color: var(--note-muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.sticky-wall-card b {
+  font-family: "Comic Sans MS", "STKaiti", "KaiTi", "LXGW WenKai", cursive;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.sticky-wall-card small {
+  color: var(--note-muted);
+  font-weight: 800;
+}
+
+.sticky-wall-card i {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 54px;
+  height: 16px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.38);
+  transform: translateX(-50%) rotate(-2deg);
+}
+
+@media (max-width: 960px) {
+  .sticky-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sticky-side-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .sticky-workspace {
+    padding-bottom: 92px;
+  }
+
+  .sticky-head {
+    align-items: start;
+  }
+
+  .sticky-date-controls {
+    justify-content: flex-start;
+  }
+
+  .sticky-date-pill {
+    flex: 1 1 150px;
+    min-width: 0;
+  }
+
+  .sticky-paper {
+    padding: 30px 16px 20px;
+  }
+
+  .sticky-paper-head {
+    align-items: flex-start;
+  }
+
+  .sticky-paper-head h2 {
+    font-size: 2rem;
+  }
+
+  .sticky-draft-foot {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sticky-draft-foot .primary-btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .sticky-task {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+  }
+
+  .sticky-wall-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
