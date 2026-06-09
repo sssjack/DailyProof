@@ -298,7 +298,7 @@ function App() {
   }
 
   return (
-    <div className={`app-shell ${view === "notes" ? "notes-shell" : ""}`} data-theme={theme}>
+    <div className="app-shell" data-theme={theme}>
       <TopBar user={user} view={view} setView={setView} logout={logout} theme={theme} setTheme={setTheme} />
       {view === "home" && (
         <Landing
@@ -1431,12 +1431,13 @@ function summarizeRecordList(records: PracticeRecord[]): PracticeRecordPeriodSum
   const questionCount = records.reduce((sum, record) => sum + Number(record.question_count || 0), 0);
   const correctCount = records.reduce((sum, record) => sum + Number(record.correct_count || 0), 0);
   const minutes = records.reduce((sum, record) => sum + Number(record.minutes || 0), 0);
+  const recordedAccuracy = records.reduce((sum, record) => sum + Number(record.accuracy || 0), 0);
   return {
     record_count: records.length,
     question_count: questionCount,
     correct_count: correctCount,
     minutes: roundOne(minutes),
-    accuracy: questionCount > 0 ? roundOne((correctCount / questionCount) * 100) : null
+    accuracy: questionCount > 0 ? roundOne((correctCount / questionCount) * 100) : records.length ? roundOne(recordedAccuracy / records.length) : null
   };
 }
 
@@ -2099,6 +2100,34 @@ function MobileRecordBrief({ prediction, confidence, stats }: { prediction: Goal
   );
 }
 
+function RecordsSyncPanel({ stats, rangeLabel }: { stats: PracticeRecordStats | null; rangeLabel: string }) {
+  const rows = (stats?.category_summary || []).filter((row) => row.record_count > 0);
+  return (
+    <section className="panel records-sync-panel">
+      <div className="panel-title">
+        <h2>做题记录同步</h2>
+        <span>{rangeLabel}</span>
+      </div>
+      {rows.length ? (
+        <div className="records-sync-grid">
+          {rows.map((row) => (
+            <article className="records-sync-card" key={row.category}>
+              <i style={{ background: categoryColor(row.category) }} />
+              <div>
+                <b>{row.label}</b>
+                <span>{row.record_count} 次 · {row.question_count} 题 · {row.minutes}min</span>
+              </div>
+              <strong>{formatRecordAccuracy(row.accuracy)}</strong>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state small">Records 保存数量关系、资料分析等记录后，会自动在这里汇总。</div>
+      )}
+    </section>
+  );
+}
+
 function ComparisonPanel({
   weekCurrent,
   weekPrevious,
@@ -2328,8 +2357,6 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const wallNotes = note
     ? [note, ...historyNotes.filter((item) => item.date !== note.date)]
     : historyNotes;
-  const adviceIsAi = note?.ai_advice_source === "ai";
-  const adviceLabel = adviceIsAi ? "AI 建议" : "本地建议";
 
   const loadNote = async (target = noteDate) => {
     const nextNote = await api<StickyNote>(`/sticky-notes?day=${target}`);
@@ -2486,41 +2513,14 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     window.setTimeout(() => setTurningPage(false), 640);
   };
 
-  const refreshAdvice = async () => {
-    try {
-      const nextNote = await api<StickyNote>(`/sticky-notes/${noteDate}/advice`, { method: "POST" });
-      setNote(nextNote);
-      toast("建议已更新");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "生成建议失败");
-    }
-  };
-
   return (
     <main className="workspace sticky-workspace paper-notes-workspace">
-      <div className="page-head sticky-head">
-        <div>
-          <p className="eyebrow">Paper notes</p>
-          <h1>Daily focus</h1>
-        </div>
-        <div className="sticky-date-controls">
-          <button className="icon-btn" title="前一天" onClick={() => shiftDate(-1)}>
-            <ChevronLeft size={18} />
-          </button>
-          <span className="sticky-date-pill">{noteDate.replace(/-/g, "/")}</span>
-          <button className="icon-btn" title="后一天" onClick={() => shiftDate(1)}>
-            <ChevronRight size={18} />
-          </button>
-          <button className="text-btn" type="button" onClick={() => setNoteDate(toDateKey(new Date()))}>今天</button>
-          <button className={`text-btn ${historyOpen ? "active" : ""}`} type="button" onClick={() => setHistoryOpen((value) => !value)}>便签墙</button>
-        </div>
-      </div>
-
       {historyOpen ? (
         <section className="sticky-history-wall" aria-label="历史便签墙">
-          <div className="panel-title">
+          <div className="panel-title sticky-history-title">
             <h2>便签墙</h2>
             <span>{wallNotes.length} 张便签</span>
+            <button className="text-btn" type="button" onClick={() => setHistoryOpen(false)}>返回便签</button>
           </div>
           <div className="sticky-wall-grid">
             {wallNotes.length ? (
@@ -2547,10 +2547,21 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </div>
         </section>
       ) : (
-      <div className="sticky-layout">
+      <div className="sticky-layout sticky-layout-single">
         <section className={`sticky-paper ${turningPage ? "turning" : ""}`} data-turn={turnDirection === 1 ? "next" : "prev"}>
           <span className="sticky-turn-sheet" aria-hidden="true" />
           <span className="sticky-pushpin" aria-hidden="true"><i /></span>
+          <div className="sticky-date-controls sticky-note-controls">
+            <button className="icon-btn" title="前一天" onClick={() => shiftDate(-1)}>
+              <ChevronLeft size={18} />
+            </button>
+            <span className="sticky-date-pill">{noteDate.replace(/-/g, "/")}</span>
+            <button className="icon-btn" title="后一天" onClick={() => shiftDate(1)}>
+              <ChevronRight size={18} />
+            </button>
+            <button className="text-btn" type="button" onClick={() => setNoteDate(toDateKey(new Date()))}>今天</button>
+            <button className="text-btn" type="button" onClick={() => setHistoryOpen(true)}>便签墙</button>
+          </div>
           <div className="sticky-paper-head">
             <div>
               <span>{formatStickyWeekday(noteDate)} · {completion}% done</span>
@@ -2684,46 +2695,6 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </button>
 
         </section>
-
-        <aside className="sticky-right-rail">
-        <div className={`sticky-advice ${adviceIsAi ? "is-ai" : "is-fallback"}`}>
-          <span className="sticky-blue-pin" aria-hidden="true" />
-          <div>
-            <span>{adviceLabel}</span>
-            <button className="text-btn" type="button" onClick={refreshAdvice}>
-              <RefreshCw size={14} /> 更新 AI
-            </button>
-          </div>
-          <p>{note?.ai_advice || "新增事项后会生成今日建议。"}</p>
-        </div>
-
-        <aside className="sticky-side-panel">
-          <div className="sticky-status-title">
-            <h2>Today</h2>
-            <span>{note?.pending_count || 0} pending</span>
-          </div>
-          <div className="sticky-status-grid">
-            <div>
-              <b>{note?.item_count || 0}</b>
-              <span>总事项</span>
-            </div>
-            <div>
-              <b>{note?.done_count || 0}</b>
-              <span>已划掉</span>
-            </div>
-            <div>
-              <b>{note?.pending_count || 0}</b>
-              <span>待处理</span>
-            </div>
-          </div>
-          <div className="sticky-preview-lines">
-            {(note?.items || []).slice(0, 5).map((item) => (
-              <span className={item.is_done ? "done" : ""} key={item.id}>{item.title}</span>
-            ))}
-            {!note?.items.length && <span>还没有写下事项</span>}
-          </div>
-        </aside>
-        </aside>
       </div>
       )}
     </main>
@@ -3413,7 +3384,7 @@ function StatsCenter() {
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
   const [mode, setMode] = useState<AnalyticsMode>("tasks");
-  const [recordRangePreset, setRecordRangePreset] = useState<RecordRangePreset>("this_week");
+  const [recordRangePreset, setRecordRangePreset] = useState<RecordRangePreset>("this_month");
   const [customStart, setCustomStart] = useState(toDateKey(addDays(today, -29)));
   const [customEnd, setCustomEnd] = useState(toDateKey(today));
   const [recordStats, setRecordStats] = useState<PracticeRecordStats | null>(null);
@@ -3598,6 +3569,7 @@ function StatsCenter() {
             <Metric icon={<Target />} label="达标率" value={asPercent(taskSignals.targetRate)} />
             <Metric icon={<Brain />} label="效率" value={`${taskSignals.efficiency ?? "-"}题/min`} />
           </div>
+          <RecordsSyncPanel stats={recordStats} rangeLabel={selectedRecordRange.label} />
           <CoachReportPanel monthly={stats} records={recordStats} />
           <section className="panel chart-panel">
             <div className="panel-title">
@@ -3711,6 +3683,20 @@ function CalendarPage() {
   const cells = buildCalendarCells(year, month);
   const statsByDate = new Map((stats?.daily || []).map((item) => [item.date, item]));
   const selectedStats = statsByDate.get(selectedDate);
+  const recordsByDate = new Map<string, PracticeRecord[]>();
+  calendarRecords.forEach((record) => {
+    const dayRecords = recordsByDate.get(record.date) || [];
+    dayRecords.push(record);
+    recordsByDate.set(record.date, dayRecords);
+  });
+  const selectedRecords = recordsByDate.get(selectedDate) || [];
+  const selectedRecordSummary = summarizeRecordList(selectedRecords);
+  const selectedRecordRows = recordCategories
+    .map((item) => {
+      const items = selectedRecords.filter((record) => record.category === item.category);
+      return { ...item, ...summarizeRecordList(items) };
+    })
+    .filter((item) => item.record_count > 0);
   const monthTitle = `${year}年 ${month}月`;
 
   const moveMonth = (delta: number) => {
@@ -3756,10 +3742,13 @@ function CalendarPage() {
           <div className="calendar-grid">
             {cells.map((cell) => {
               const day = statsByDate.get(cell.dateKey);
+              const dayRecords = recordsByDate.get(cell.dateKey) || [];
+              const dayRecordSummary = summarizeRecordList(dayRecords);
               const completion = day?.completion_rate || 0;
               const isToday = cell.dateKey === toDateKey(new Date());
               const isSelected = cell.dateKey === selectedDate;
-              const hasWork = Boolean(day?.tasks_total || day?.practice_task_count);
+              const hasRecord = dayRecords.length > 0;
+              const hasWork = Boolean(day?.tasks_total || day?.practice_task_count || hasRecord);
               return (
                 <button
                   key={cell.dateKey}
@@ -3771,13 +3760,13 @@ function CalendarPage() {
                     completion >= 100 ? "complete" : completion > 0 ? "partial" : ""
                   ].join(" ")}
                   onClick={() => selectCell(cell)}
-                  title={`${cell.dateKey} 完成率 ${completion}%｜刷题 ${day?.question_count || 0} 题｜正确率 ${day?.accuracy ?? "-"}%｜用时 ${day?.practice_minutes || 0}min`}
+                  title={`${cell.dateKey} 完成率 ${completion}%｜任务刷题 ${day?.question_count || 0} 题｜Records ${dayRecordSummary.record_count} 次 ${dayRecordSummary.question_count} 题｜正确率 ${dayRecordSummary.accuracy ?? day?.accuracy ?? "-"}%｜用时 ${dayRecordSummary.minutes || day?.practice_minutes || 0}min`}
                 >
                   <span className="calendar-day">{cell.date.getDate()}</span>
                   <span className="calendar-progress" style={{ width: `${Math.max(8, completion)}%` }} />
                   <span className="calendar-dots">
-                    {hasWork && <i />}
-                    {(day?.practice_task_count || 0) > 0 && <i />}
+                    {(day?.tasks_total || 0) > 0 && <i />}
+                    {((day?.practice_task_count || 0) > 0 || hasRecord) && <i />}
                     {completion >= 100 && <i />}
                   </span>
                 </button>
@@ -3801,7 +3790,17 @@ function CalendarPage() {
             <span>{selectedStats?.accuracy ?? "-"}% 正确率</span>
             <span>{selectedStats?.practice_minutes || 0}min</span>
           </div>
+          <div className="day-strip record-day-strip">
+            <span>Records {selectedRecordSummary.record_count} 次</span>
+            <span>{selectedRecordSummary.question_count} 题</span>
+            <span>{selectedRecordSummary.accuracy ?? "-"}%</span>
+            <span>{selectedRecordSummary.minutes}min</span>
+          </div>
           <div className="calendar-task-list">
+            <div className="calendar-section-title">
+              <b>计划任务</b>
+              <span>{selectedDaily?.tasks?.length || 0} 项</span>
+            </div>
             {selectedDaily?.tasks?.length ? (
               selectedDaily.tasks.map((task) => (
                 <div className={`calendar-task ${task.status}`} key={task.id}>
@@ -3815,6 +3814,41 @@ function CalendarPage() {
             ) : (
               <div className="empty-state small">这一天还没有计划。空白也可以是一种安排。</div>
             )}
+          </div>
+          <div className="calendar-record-list">
+            <div className="calendar-section-title">
+              <b>做题记录</b>
+              <span>{selectedRecords.length} 次</span>
+            </div>
+            {selectedRecordRows.length ? (
+              <div className="calendar-record-cats">
+                {selectedRecordRows.map((row) => (
+                  <article key={row.category}>
+                    <i style={{ background: categoryColor(row.category) }} />
+                    <b>{row.label}</b>
+                    <span>{row.record_count} 次 · {row.question_count} 题 · {row.minutes}min</span>
+                    <strong>{formatRecordAccuracy(row.accuracy)}</strong>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state small">这一天还没有保存做题记录。</div>
+            )}
+            {selectedRecords.length ? (
+              <div className="calendar-record-entries">
+                {selectedRecords.map((record) => (
+                  <article key={record.id}>
+                    <i style={{ background: categoryColor(record.category) }} />
+                    <div>
+                      <b>{record.label}</b>
+                      <span>{record.correct_count}/{record.question_count} 题 · {record.accuracy}% · {record.minutes}min</span>
+                      {record.note && <p>{record.note}</p>}
+                      {record.issue_labels.length ? <small>{record.issue_labels.join(" / ")}</small> : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

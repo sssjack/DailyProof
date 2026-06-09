@@ -7427,3 +7427,230 @@ select {
     justify-content: flex-end;
   }
 }
+
+/* Notes should stay inside the app shell/sidebar architecture. */
+.app-sidebar ~ .paper-notes-workspace {
+  width: auto;
+  max-width: none;
+}
+
+.paper-notes-workspace {
+  min-height: 100vh;
+  background: var(--notes-canvas-bg);
+  --notes-canvas-bg:
+    radial-gradient(circle at 17% 24%, rgba(28, 27, 26, 0.08) 0 1px, transparent 1px),
+    radial-gradient(circle at 74% 42%, rgba(28, 27, 26, 0.06) 0 1px, transparent 1px),
+    linear-gradient(180deg, #fdf8f6, #fffaf2 74%, #f8f0e6);
+}
+
+.app-shell[data-theme="night"] .paper-notes-workspace {
+  --notes-canvas-bg:
+    radial-gradient(circle at 17% 24%, rgba(241, 248, 247, 0.08) 0 1px, transparent 1px),
+    radial-gradient(circle at 74% 42%, rgba(241, 248, 247, 0.05) 0 1px, transparent 1px),
+    linear-gradient(180deg, #101820, #081016 76%, #05090c);
+  --note-paper: #f1d36a;
+  --note-paper-deep: #c9a942;
+  --note-ink: #172033;
+  --note-muted: #5c5130;
+  --note-line: rgba(42, 38, 22, 0.18);
+  --note-shadow: rgba(0, 0, 0, 0.34);
+}
+
+.app-shell[data-theme="pulse"] .paper-notes-workspace {
+  --notes-canvas-bg:
+    radial-gradient(circle at 17% 24%, rgba(184, 243, 108, 0.11) 0 1px, transparent 1px),
+    radial-gradient(circle at 74% 42%, rgba(102, 220, 196, 0.08) 0 1px, transparent 1px),
+    linear-gradient(180deg, #0e1712, #07100d 74%, #050b08);
+  --note-paper: #d9f36a;
+  --note-paper-deep: #a8c94a;
+  --note-ink: #1f2a1f;
+  --note-muted: #4e5d2e;
+  --note-line: rgba(41, 59, 26, 0.2);
+  --note-shadow: rgba(0, 0, 0, 0.32);
+}
+
+.paper-notes-workspace .sticky-layout-single {
+  min-height: calc(100vh - 120px);
+  align-items: center;
+  justify-content: center;
+}
+
+.paper-notes-workspace .sticky-layout-single .sticky-paper {
+  width: clamp(380px, 48vw, 560px);
+}
+
+.sticky-note-controls {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+
+.paper-notes-workspace .sticky-note-controls .icon-btn {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+.paper-notes-workspace .sticky-note-controls .text-btn,
+.paper-notes-workspace .sticky-note-controls .sticky-date-pill {
+  min-height: 30px;
+  font-size: 11px;
+}
+
+.sticky-history-title {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+}
+
+.sticky-history-title .text-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.records-sync-panel {
+  margin-bottom: 16px;
+}
+
+.records-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.records-sync-card {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 70px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-solid) 64%, transparent);
+}
+
+.records-sync-card i {
+  width: 8px;
+  height: 42px;
+  border-radius: 999px;
+}
+
+.records-sync-card b {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.records-sync-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.records-sync-card strong {
+  color: var(--accent);
+  font-family: var(--title-font);
+  font-size: 1.1rem;
+}
+
+.record-day-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.calendar-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 8px;
+  color: var(--text);
+}
+
+.calendar-section-title b {
+  font-family: var(--title-font);
+}
+
+.calendar-section-title span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.calendar-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.calendar-record-cats,
+.calendar-record-entries {
+  display: grid;
+  gap: 8px;
+}
+
+.calendar-record-cats article,
+.calendar-record-entries article {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-solid) 62%, transparent);
+}
+
+.calendar-record-cats i,
+.calendar-record-entries i {
+  width: 7px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.calendar-record-cats b,
+.calendar-record-entries b {
+  display: block;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.calendar-record-cats span,
+.calendar-record-entries span,
+.calendar-record-entries small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.calendar-record-cats strong {
+  color: var(--accent);
+  font-family: var(--title-font);
+  font-size: 0.96rem;
+}
+
+.calendar-record-entries article {
+  grid-template-columns: 7px minmax(0, 1fr);
+}
+
+.calendar-record-entries p {
+  margin: 5px 0 0;
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .paper-notes-workspace .sticky-layout-single .sticky-paper {
+    width: min(100%, 500px);
+  }
+
+  .sticky-note-controls {
+    justify-content: flex-start;
+  }
+
+  .record-day-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
