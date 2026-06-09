@@ -15,15 +15,13 @@ function addDays(date: Date, days: number) {
 
 function startOfHeatmap(date: Date) {
   const next = new Date(date);
-  const day = next.getDay() || 7;
-  next.setDate(next.getDate() - day + 1);
+  next.setDate(next.getDate() - next.getDay());
   return next;
 }
 
 function endOfHeatmap(date: Date) {
   const next = new Date(date);
-  const day = next.getDay() || 7;
-  next.setDate(next.getDate() + (7 - day));
+  next.setDate(next.getDate() + (6 - next.getDay()));
   return next;
 }
 
@@ -40,22 +38,20 @@ function heatLevel(value: number, max: number) {
 export function HeatmapChart({
   records,
   year,
-  month,
 }: {
   records: PracticeRecord[];
   year: number;
-  month: number;
 }) {
   const dailyMap = new Map<string, number>();
   for (const record of records) {
     dailyMap.set(record.date, (dailyMap.get(record.date) || 0) + record.question_count);
   }
 
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0);
-  const start = startOfHeatmap(monthStart);
-  const end = endOfHeatmap(monthEnd);
-  const days: Array<{ key: string; count: number; date: Date; inMonth: boolean }> = [];
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31);
+  const start = startOfHeatmap(yearStart);
+  const end = endOfHeatmap(yearEnd);
+  const days: Array<{ key: string; count: number; date: Date; inYear: boolean }> = [];
   for (let current = start; current <= end; current = addDays(current, 1)) {
     const key = dateKey(current);
     const count = dailyMap.get(key) || 0;
@@ -63,25 +59,38 @@ export function HeatmapChart({
       key,
       count,
       date: new Date(current),
-      inMonth: current.getMonth() === month - 1,
+      inYear: current.getFullYear() === year,
     });
   }
   const weeks = Array.from({ length: Math.ceil(days.length / 7) }, (_, index) => days.slice(index * 7, index * 7 + 7));
   const maxValue = Math.max(1, ...days.map((day) => day.count));
-  const total = days.filter((day) => day.inMonth).reduce((sum, day) => sum + day.count, 0);
-  const activeDays = days.filter((day) => day.inMonth && day.count > 0).length;
-  const weekLabels = ["一", "二", "三", "四", "五", "六", "日"];
+  const yearDays = days.filter((day) => day.inYear);
+  const total = yearDays.reduce((sum, day) => sum + day.count, 0);
+  const activeDays = yearDays.filter((day) => day.count > 0).length;
+  const weekLabels = ["", "一", "", "三", "", "五", ""];
+  const monthLabels = weeks.map((week, weekIndex) => {
+    const monthStartDay = week.find((day) => day.inYear && day.date.getDate() === 1);
+    if (!monthStartDay && weekIndex !== 0) return "";
+    const labelDate = monthStartDay?.date || yearStart;
+    return `${labelDate.getMonth() + 1}月`;
+  });
 
   return (
     <section className="panel github-heatmap-panel">
       <div className="panel-title">
         <h2>练习热力图</h2>
-        <span>{year}年{month}月 · {activeDays} 天 · {total} 题</span>
+        <span>{year}年 · {activeDays} 天 · {total} 题</span>
       </div>
-      <div className="github-heatmap-shell" aria-label={`${year}年${month}月练习热力图`}>
+      <div className="github-heatmap-shell" aria-label={`${year}年练习热力图`}>
+        <div className="github-heatmap-corner" aria-hidden="true" />
+        <div className="github-heatmap-months" style={{ gridTemplateColumns: `repeat(${weeks.length}, 12px)` }} aria-hidden="true">
+          {monthLabels.map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
         <div className="github-heatmap-weekdays" aria-hidden="true">
-          {weekLabels.map((label) => (
-            <span key={label}>{label}</span>
+          {weekLabels.map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
           ))}
         </div>
         <div className="github-heatmap-grid" style={{ gridTemplateColumns: `repeat(${weeks.length}, 12px)` }}>
@@ -89,7 +98,7 @@ export function HeatmapChart({
             <div className="github-heatmap-week" key={`week-${weekIndex}`}>
               {week.map((day) => (
                 <span
-                  className={`github-heatmap-cell level-${heatLevel(day.count, maxValue)} ${day.inMonth ? "" : "outside"}`}
+                  className={`github-heatmap-cell level-${heatLevel(day.count, maxValue)} ${day.inYear ? "" : "outside"}`}
                   key={day.key}
                   title={`${day.key} · ${day.count} 题`}
                   aria-label={`${day.key}，${day.count}题`}

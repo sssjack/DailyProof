@@ -3515,8 +3515,11 @@ function CalendarPage() {
 
   useEffect(() => {
     api<MonthlyStats>(`/stats/monthly?year=${year}&month=${month}`).then(setStats);
-    api<PracticeRecord[]>(`/practice-records?year=${year}&month=${month}`).then(setCalendarRecords).catch(() => setCalendarRecords([]));
   }, [year, month]);
+
+  useEffect(() => {
+    api<PracticeRecord[]>(`/practice-records?year=${year}`).then(setCalendarRecords).catch(() => setCalendarRecords([]));
+  }, [year]);
 
   useEffect(() => {
     api<{ daily_plan: DailyPlan | null }>(`/daily?day=${selectedDate}`).then((data) => setSelectedDaily(data.daily_plan));
@@ -3632,7 +3635,7 @@ function CalendarPage() {
           </div>
         </aside>
       </div>
-      <HeatmapChart records={calendarRecords} year={year} month={month} />
+      <HeatmapChart records={calendarRecords} year={year} />
     </main>
   );
 }

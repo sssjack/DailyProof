@@ -4920,14 +4920,39 @@ select {
 
 .github-heatmap-shell {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-rows: 18px auto;
+  column-gap: 8px;
+  row-gap: 4px;
   overflow-x: auto;
   padding: 8px 0 4px;
 }
 
+.github-heatmap-corner {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.github-heatmap-months {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1;
+  gap: 4px;
+  min-width: max-content;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.github-heatmap-months span {
+  min-width: 34px;
+  white-space: nowrap;
+}
+
 .github-heatmap-weekdays {
   display: grid;
+  grid-column: 1;
+  grid-row: 2;
   grid-template-rows: repeat(7, 12px);
   gap: 4px;
   color: var(--muted);
@@ -4937,6 +4962,8 @@ select {
 
 .github-heatmap-grid {
   display: grid;
+  grid-column: 2;
+  grid-row: 2;
   gap: 4px;
   min-width: max-content;
 }
