@@ -2268,6 +2268,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [stats, setStats] = useState<PracticeRecordStats | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [recordDate, setRecordDate] = useState(toDateKey(today));
   const [category, setCategory] = useState("verbal");
   const [questionCount, setQuestionCount] = useState("");
@@ -2368,6 +2369,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
       setNote("");
       toast("做题记录已保存");
       await refresh();
+      setFormOpen(false);
     } catch (err) {
       toast(err instanceof Error ? err.message : "保存做题记录失败");
     } finally {
@@ -2405,6 +2407,9 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
           </div>
           <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
           {scope === "week" && <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
+          <button className="primary-btn compact" type="button" onClick={() => setFormOpen(true)}>
+            <Plus size={17} /> 新增记录
+          </button>
         </div>
       </div>
 
@@ -2416,11 +2421,12 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         <Metric icon={<BarChart3 />} label="覆盖板块" value={`${activeCategories}/7`} />
       </div>
 
-      <div className="records-layout">
-        <section className="panel record-form-panel">
+      {formOpen && (
+        <div className="record-modal-overlay" role="dialog" aria-modal="true" aria-label="新增做题记录" onClick={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}>
+        <section className="panel record-form-panel record-modal">
           <div className="panel-title">
             <h2>新增记录</h2>
-            <span>Daily log</span>
+            <button className="icon-btn" type="button" title="关闭" onClick={() => setFormOpen(false)}>×</button>
           </div>
           <div className="record-template-strip">
             {recordTemplates.map((template) => (
@@ -2495,7 +2501,10 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
             </button>
           </div>
         </section>
+        </div>
+      )}
 
+      <div className="records-layout">
         <section className="panel record-table-panel">
           <div className="panel-title">
             <h2>近期记录</h2>

@@ -1,17 +1,41 @@
-import ReactEChartsCore from "echarts-for-react/lib/core";
-import * as echarts from "echarts/core";
-import { HeatmapChart as EHeatmapChart } from "echarts/charts";
-import {
-  GridComponent,
-  TooltipComponent,
-  VisualMapComponent,
-  CalendarComponent,
-} from "echarts/components";
-import { CanvasRenderer } from "echarts/renderers";
 import type { PracticeRecord } from "../lib/api";
-import { getEChartsTheme } from "../lib/chartTheme";
 
-echarts.use([EHeatmapChart, GridComponent, TooltipComponent, VisualMapComponent, CalendarComponent, CanvasRenderer]);
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfHeatmap(date: Date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() - day + 1);
+  return next;
+}
+
+function endOfHeatmap(date: Date) {
+  const next = new Date(date);
+  const day = next.getDay() || 7;
+  next.setDate(next.getDate() + (7 - day));
+  return next;
+}
+
+function heatLevel(value: number, max: number) {
+  if (value <= 0) return 0;
+  if (max <= 1) return 1;
+  const ratio = value / max;
+  if (ratio >= 0.75) return 4;
+  if (ratio >= 0.45) return 3;
+  if (ratio >= 0.2) return 2;
+  return 1;
+}
 
 export function HeatmapChart({
   records,
@@ -22,78 +46,67 @@ export function HeatmapChart({
   year: number;
   month: number;
 }) {
-  const theme = getEChartsTheme();
-
   const dailyMap = new Map<string, number>();
-  for (const r of records) {
-    dailyMap.set(r.date, (dailyMap.get(r.date) || 0) + r.question_count);
+  for (const record of records) {
+    dailyMap.set(record.date, (dailyMap.get(record.date) || 0) + record.question_count);
   }
 
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
-  const data: Array<[string, number]> = [];
-  for (let d = 1; d <= lastDay; d++) {
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    data.push([dateStr, dailyMap.get(dateStr) || 0]);
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0);
+  const start = startOfHeatmap(monthStart);
+  const end = endOfHeatmap(monthEnd);
+  const days: Array<{ key: string; count: number; date: Date; inMonth: boolean }> = [];
+  for (let current = start; current <= end; current = addDays(current, 1)) {
+    const key = dateKey(current);
+    const count = dailyMap.get(key) || 0;
+    days.push({
+      key,
+      count,
+      date: new Date(current),
+      inMonth: current.getMonth() === month - 1,
+    });
   }
-
-  const maxVal = Math.max(1, ...data.map(([, v]) => v));
-
-  const textColor = (theme.textStyle as { color: string })?.color || "#e2e8f0";
-  const borderColor = (theme.categoryAxis as { axisLine: { lineStyle: { color: string } } })?.axisLine?.lineStyle?.color || "#1e293b";
-
-  const option = {
-    tooltip: {
-      ...theme.tooltip as object,
-      formatter: (params: { value: [string, number] }) => {
-        const [date, count] = params.value;
-        return `${date}<br/>做题量: ${count} 题`;
-      },
-    },
-    visualMap: {
-      min: 0,
-      max: maxVal,
-      calculable: false,
-      orient: "horizontal" as const,
-      left: "center",
-      bottom: 0,
-      inRange: { color: ["#0f172a", "#1e3a5f", "#2563eb", "#6366f1", "#a855f7"] },
-      textStyle: { color: textColor, fontSize: 11 },
-      itemWidth: 14,
-      itemHeight: 10,
-    },
-    calendar: {
-      top: 36,
-      left: 40,
-      right: 20,
-      bottom: 40,
-      range: [startDate, endDate],
-      cellSize: ["auto", 20],
-      itemStyle: { borderWidth: 2, borderColor },
-      splitLine: { lineStyle: { color: borderColor } },
-      yearLabel: { show: false },
-      monthLabel: { show: false },
-      dayLabel: { color: textColor, fontSize: 11, firstDay: 1, nameMap: ["日", "一", "二", "三", "四", "五", "六"] },
-    },
-    series: [
-      {
-        type: "heatmap",
-        coordinateSystem: "calendar",
-        data,
-      },
-    ],
-  };
+  const weeks = Array.from({ length: Math.ceil(days.length / 7) }, (_, index) => days.slice(index * 7, index * 7 + 7));
+  const maxValue = Math.max(1, ...days.map((day) => day.count));
+  const total = days.filter((day) => day.inMonth).reduce((sum, day) => sum + day.count, 0);
+  const activeDays = days.filter((day) => day.inMonth && day.count > 0).length;
+  const weekLabels = ["一", "二", "三", "四", "五", "六", "日"];
 
   return (
-    <section className="panel echart-panel">
+    <section className="panel github-heatmap-panel">
       <div className="panel-title">
         <h2>练习热力图</h2>
-        <span>{year}年{month}月</span>
+        <span>{year}年{month}月 · {activeDays} 天 · {total} 题</span>
       </div>
-      <div className="echart-container">
-        <ReactEChartsCore echarts={echarts} option={option} theme={theme} style={{ height: 200 }} notMerge />
+      <div className="github-heatmap-shell" aria-label={`${year}年${month}月练习热力图`}>
+        <div className="github-heatmap-weekdays" aria-hidden="true">
+          {weekLabels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+        <div className="github-heatmap-grid" style={{ gridTemplateColumns: `repeat(${weeks.length}, 12px)` }}>
+          {weeks.map((week, weekIndex) => (
+            <div className="github-heatmap-week" key={`week-${weekIndex}`}>
+              {week.map((day) => (
+                <span
+                  className={`github-heatmap-cell level-${heatLevel(day.count, maxValue)} ${day.inMonth ? "" : "outside"}`}
+                  key={day.key}
+                  title={`${day.key} · ${day.count} 题`}
+                  aria-label={`${day.key}，${day.count}题`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="github-heatmap-footer">
+        <span>Less</span>
+        <i className="level-0" />
+        <i className="level-1" />
+        <i className="level-2" />
+        <i className="level-3" />
+        <i className="level-4" />
+        <span>More</span>
       </div>
     </section>
   );
