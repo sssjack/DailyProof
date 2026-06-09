@@ -926,10 +926,13 @@ def serialize_sticky_note_item(item: models.StickyNoteItem) -> dict:
 def serialize_sticky_note(note: models.StickyNote) -> dict:
     items = sorted(note.items or [], key=lambda item: (item.sort_order, item.id))
     done_count = sum(1 for item in items if item.is_done)
+    advice = note.ai_advice or ""
+    advice_source = note.ai_advice_source or "fallback"
     return {
         "id": note.id,
         "date": note.note_date.isoformat(),
-        "ai_advice": note.ai_advice or "",
+        "ai_advice": advice,
+        "ai_advice_source": advice_source,
         "advice_generated_at": note.advice_generated_at.isoformat() if note.advice_generated_at else None,
         "created_at": note.created_at.isoformat() if note.created_at else None,
         "updated_at": note.updated_at.isoformat() if note.updated_at else None,
@@ -1001,6 +1004,7 @@ def refresh_sticky_note_advice(db: Session, note: models.StickyNote) -> models.S
     )
     content = generate_sticky_advice(note.note_date.isoformat(), item_summary) if items else None
     note.ai_advice = (content or fallback_sticky_advice(note.note_date, items)).strip()
+    note.ai_advice_source = "ai" if content else "fallback"
     note.advice_generated_at = utc_now()
     db.flush()
     db.refresh(note)
@@ -1016,6 +1020,7 @@ def add_sticky_note_items(db: Session, user_id: int, note_date: date, text: str)
     for offset, title in enumerate(titles):
         db.add(models.StickyNoteItem(sticky_note_id=note.id, sort_order=start_order + offset, title=title))
     db.flush()
+    db.expire(note, ["items"])
     note = sticky_note_query(db, user_id, note_date) or note
     return refresh_sticky_note_advice(db, note)
 

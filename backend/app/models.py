@@ -142,6 +142,7 @@ class StickyNote(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     note_date: Mapped[date] = mapped_column(Date, index=True)
     ai_advice: Mapped[str] = mapped_column(Text, default="")
+    ai_advice_source: Mapped[str] = mapped_column(String(20), default="fallback")
     advice_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

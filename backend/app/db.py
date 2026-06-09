@@ -81,6 +81,7 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     block_columns = {column["name"] for column in inspector.get_columns("plan_template_blocks")}
     record_columns = {column["name"] for column in inspector.get_columns("practice_records")} if inspector.has_table("practice_records") else set()
     plan_columns = {column["name"] for column in inspector.get_columns("monthly_plans")}
+    sticky_columns = {column["name"] for column in inspector.get_columns("sticky_notes")} if inspector.has_table("sticky_notes") else set()
 
     varchar = "VARCHAR(40)" if engine.dialect.name == "postgresql" else "VARCHAR(40)"
     float_type = "DOUBLE PRECISION" if engine.dialect.name == "postgresql" else "FLOAT"
@@ -111,6 +112,9 @@ def _run_light_migrations(connection) -> None:  # type: ignore[no-untyped-def]
 
     if "category_goals" not in plan_columns:
         connection.exec_driver_sql("ALTER TABLE monthly_plans ADD COLUMN category_goals JSON")
+
+    if sticky_columns and "ai_advice_source" not in sticky_columns:
+        connection.exec_driver_sql("ALTER TABLE sticky_notes ADD COLUMN ai_advice_source VARCHAR(20) DEFAULT 'fallback'")
 
     practice_categories = (
         "'data_analysis', 'quantitative', 'verbal', 'graphic_reasoning', "

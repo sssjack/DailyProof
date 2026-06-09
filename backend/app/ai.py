@@ -27,6 +27,15 @@ def is_ai_available() -> bool:
     return bool((settings.deepseek_api_key or "").strip())
 
 
+def _normalize_deepseek_model(model: str | None) -> str:
+    value = (model or "deepseek-v4-pro").strip()
+    aliases = {
+        "deepseekv4pro": "deepseek-v4-pro",
+        "deepseek v4 pro": "deepseek-v4-pro",
+    }
+    return aliases.get(value.lower(), value)
+
+
 def _call_deepseek(
     *,
     system_prompt: str,
@@ -38,7 +47,7 @@ def _call_deepseek(
     if not api_key:
         return None
     payload = {
-        "model": (settings.deepseek_model or "deepseek-v4-pro").strip(),
+        "model": _normalize_deepseek_model(settings.deepseek_model),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -162,11 +171,11 @@ def generate_error_analysis(issue_summary: str, category_summary: str) -> str | 
 
 def generate_sticky_advice(note_date: str, items_summary: str) -> str | None:
     system_prompt = """你是 DailyProof 的便签清单教练。
-根据用户某一天的事项清单，输出 3 条简短、具体、温和的中文建议。
-建议要包含完成顺序、注意事项或节奏提醒。不要输出 Markdown 标题，不要超过 160 字。"""
+根据用户某一天的事项清单，输出一段简短、具体、温和的中文建议。
+建议必须来自清单状态，包含完成顺序、注意事项或节奏提醒。不要输出 Markdown 标题，不要超过 120 字。"""
     return _call_deepseek(
         system_prompt=system_prompt,
         user_prompt=f"日期：{note_date}\n清单：\n{items_summary}",
         temperature=0.35,
-        max_tokens=320,
+        max_tokens=900,
     )

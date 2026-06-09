@@ -214,6 +214,7 @@ export type StickyNote = {
   id: number;
   date: string;
   ai_advice: string;
+  ai_advice_source: "ai" | "fallback" | string;
   advice_generated_at: string | null;
   created_at: string | null;
   updated_at: string | null;

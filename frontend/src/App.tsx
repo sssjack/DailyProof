@@ -2324,6 +2324,8 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const wallNotes = note
     ? [note, ...historyNotes.filter((item) => item.date !== note.date)]
     : historyNotes;
+  const adviceIsAi = note?.ai_advice_source === "ai";
+  const adviceLabel = adviceIsAi ? "AI 建议" : "本地建议";
 
   const loadNote = async (target = noteDate) => {
     const nextNote = await api<StickyNote>(`/sticky-notes?day=${target}`);
@@ -2607,16 +2609,17 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
             <span>{currentPage + 1}</span>
           </button>
 
-          <div className="sticky-advice">
-            <div>
-              <span>AI 建议</span>
-              <button className="text-btn" type="button" onClick={refreshAdvice}>
-                <RefreshCw size={14} /> 更新
-              </button>
-            </div>
-            <p>{note?.ai_advice || "新增事项后会生成今日建议。"}</p>
-          </div>
         </section>
+
+        <div className={`sticky-advice ${adviceIsAi ? "is-ai" : "is-fallback"}`}>
+          <div>
+            <span>{adviceLabel}</span>
+            <button className="text-btn" type="button" onClick={refreshAdvice}>
+              <RefreshCw size={14} /> 更新 AI
+            </button>
+          </div>
+          <p>{note?.ai_advice || "新增事项后会生成今日建议。"}</p>
+        </div>
 
         <aside className="panel sticky-side-panel">
           <div className="panel-title">
