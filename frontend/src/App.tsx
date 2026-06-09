@@ -2300,6 +2300,22 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
     parsedCorrectPreview <= parsedQuestionPreview
       ? Math.round((parsedCorrectPreview * 1000) / parsedQuestionPreview) / 10
       : null;
+  const selectedCategory = recordCategories.find((item) => item.category === category) || recordCategories[0];
+  const recordDateDisplay = recordDate ? recordDate.replace(/-/g, "/") : "";
+
+  const shiftRecordDate = (days: number) => {
+    const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(recordDate) ? new Date(`${recordDate}T00:00:00`) : today;
+    setRecordDate(toDateKey(addDays(baseDate, days)));
+  };
+
+  const setTodayRecordDate = () => {
+    setRecordDate(toDateKey(new Date()));
+  };
+
+  const updateRecordDateText = (value: string) => {
+    const normalized = value.replace(/[/.]/g, "-").replace(/[^\d-]/g, "").slice(0, 10);
+    setRecordDate(normalized);
+  };
 
   const toggleIssueTag = (tag: string) => {
     setSelectedIssueTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
@@ -2334,6 +2350,10 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
     const parsedMinutes = Number(minutes);
     if (!recordDate) {
       toast("请选择记录日期");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(recordDate)) {
+      toast("请填写有效日期");
       return;
     }
     if (!questionCount.trim() || !Number.isInteger(parsedQuestionCount) || parsedQuestionCount <= 0) {
@@ -2424,9 +2444,13 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
       {formOpen && (
         <div className="record-modal-overlay" role="dialog" aria-modal="true" aria-label="新增做题记录" onClick={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}>
         <section className="panel record-form-panel record-modal">
-          <div className="panel-title">
-            <h2>新增记录</h2>
-            <button className="icon-btn" type="button" title="关闭" onClick={() => setFormOpen(false)}>×</button>
+          <div className="record-modal-head">
+            <div>
+              <p className="eyebrow">Daily log</p>
+              <h2>新增记录</h2>
+              <span>记录板块、题量、正确数和复盘备注</span>
+            </div>
+            <button className="icon-btn record-modal-close" type="button" title="关闭" onClick={() => setFormOpen(false)}>×</button>
           </div>
           <div className="record-template-strip">
             {recordTemplates.map((template) => (
@@ -2441,18 +2465,49 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
             </button>
           </div>
           <div className="record-form">
-            <label>
-              日期
-              <input type="date" value={recordDate} onChange={(event) => setRecordDate(event.target.value)} />
-            </label>
-            <label>
-              板块
-              <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            <div className="record-date-card">
+              <span className="field-label">日期</span>
+              <div className="record-date-control">
+                <button className="icon-btn" type="button" title="前一天" onClick={() => shiftRecordDate(-1)}>
+                  <ChevronLeft size={16} />
+                </button>
+                <label>
+                  <CalendarDays size={17} />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={recordDateDisplay}
+                    placeholder="YYYY/MM/DD"
+                    onChange={(event) => updateRecordDateText(event.target.value)}
+                  />
+                </label>
+                <button className="icon-btn" type="button" title="后一天" onClick={() => shiftRecordDate(1)}>
+                  <ChevronRight size={16} />
+                </button>
+                <button className="record-date-today" type="button" onClick={setTodayRecordDate}>今天</button>
+              </div>
+            </div>
+            <div className="record-category-picker">
+              <div className="field-label">
+                <span>板块</span>
+                <b>{selectedCategory.label}</b>
+              </div>
+              <div className="record-category-options" role="radiogroup" aria-label="做题板块">
                 {recordCategories.map((item) => (
-                  <option key={item.category} value={item.category}>{item.label}</option>
+                  <button
+                    className={category === item.category ? "active" : ""}
+                    key={item.category}
+                    type="button"
+                    role="radio"
+                    aria-checked={category === item.category}
+                    onClick={() => setCategory(item.category)}
+                  >
+                    <i style={{ background: categoryColor(item.category) }} />
+                    <b>{item.label}</b>
+                  </button>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
             <label>
               题量
               <input type="number" min={1} step={1} value={questionCount} placeholder="20" onChange={(event) => setQuestionCount(event.target.value)} />
