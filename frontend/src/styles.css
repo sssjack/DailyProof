@@ -980,7 +980,7 @@ select:focus {
 .day-bar em,
 .day-bar b {
   position: absolute;
-  bottom: 25px;
+  bottom: 30px;
   width: 29%;
   min-height: 2px;
   border-radius: 999px 999px 0 0;
@@ -1007,7 +1007,9 @@ select:focus {
   left: 50%;
   transform: translateX(-50%);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .trend-tooltip {
@@ -1703,7 +1705,7 @@ select:focus {
   }
 
   .day-bar span {
-    font-size: 9px;
+    font-size: 8.5px;
   }
 
   .calendar-weekdays,

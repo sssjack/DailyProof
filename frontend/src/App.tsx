@@ -3431,7 +3431,7 @@ function StatsCenter() {
                   <i style={{ height: `${Math.round(((day.question_count || 0) / maxQuestions) * 100)}%` }} />
                   <em style={{ height: `${day.accuracy || 0}%` }} />
                   <b style={{ height: `${Math.round((Number(day.practice_minutes || 0) / maxMinutes) * 100)}%` }} />
-                  <span>{Number(day.date.slice(-2))}</span>
+                  <span>{formatDateAxisLabel(day.date)}</span>
                   <div className="trend-tooltip">
                     <strong>{day.date}</strong>
                     <p>题量：{day.question_count || 0} 题</p>
