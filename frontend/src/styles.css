@@ -5276,13 +5276,18 @@ select {
 .sticky-layout {
   display: grid;
   grid-template-columns: minmax(0, 560px);
+  grid-template-areas: "paper";
   justify-content: center;
-  gap: 18px;
+  justify-items: center;
   align-items: center;
+  gap: 18px;
+  position: relative;
+  min-height: calc(100vh - 178px);
 }
 
 .sticky-paper {
   position: relative;
+  grid-area: paper;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
@@ -5831,22 +5836,37 @@ select {
 }
 
 .sticky-side-panel {
-  position: relative;
-  width: min(100%, 560px);
-  justify-self: center;
-  padding: 18px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 8;
+  width: clamp(180px, 15vw, 220px);
+  padding: 16px;
+  border-radius: 14px;
+  box-shadow:
+    0 18px 44px rgba(44, 53, 72, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(14px);
+}
+
+.sticky-side-panel .panel-title {
+  margin-bottom: 12px;
+}
+
+.sticky-side-panel .panel-title h2 {
+  font-size: 1.18rem;
 }
 
 .sticky-status-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .sticky-status-grid div {
   display: grid;
   gap: 2px;
-  padding: 13px 8px;
+  padding: 10px 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
   text-align: center;
@@ -5856,26 +5876,29 @@ select {
 .sticky-status-grid b {
   color: var(--text);
   font-family: var(--title-font);
-  font-size: 1.45rem;
+  font-size: 1.12rem;
 }
 
 .sticky-status-grid span,
 .sticky-preview-lines span {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .sticky-preview-lines {
   display: grid;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 12px;
 }
 
 .sticky-preview-lines span {
-  padding: 8px 10px;
+  overflow: hidden;
+  padding: 7px 9px;
   border-left: 3px solid color-mix(in srgb, var(--second) 62%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--second) 9%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sticky-preview-lines span.done {
@@ -5978,14 +6001,18 @@ select {
   transform: translateX(-50%) rotate(-2deg);
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
   .sticky-layout {
     grid-template-columns: 1fr;
     justify-items: center;
+    min-height: auto;
   }
 
   .sticky-side-panel {
     position: static;
+    width: min(100%, 560px);
+    box-shadow: none;
+    backdrop-filter: none;
   }
 }
 
