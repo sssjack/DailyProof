@@ -52,6 +52,7 @@ import { PracticeTrendEChart } from "./components/PracticeTrendEChart";
 import { RecordTrendEChart } from "./components/RecordTrendEChart";
 import { RadarChart } from "./components/RadarChart";
 import { HeatmapChart } from "./components/HeatmapChart";
+import { formatDateAxisLabel, formatPeriodAxisLabel } from "./lib/dateLabels";
 
 type View = "home" | "dashboard" | "records" | "stats" | "calendar";
 type ThemeName = "night" | "dawn" | "pulse";
@@ -1197,7 +1198,7 @@ function PracticeTrendChart({ title, points }: { title: string; points: Practice
               ))}
               {tickRows.map(({ point, index }) => (
                 <text className="attempt-x-label" key={`tick-${point.id}`} x={getX(index)} y={chartHeight - 15}>
-                  {point.sequence}
+                  {formatDateAxisLabel(point.date)}
                 </text>
               ))}
             </svg>
@@ -1211,7 +1212,7 @@ function PracticeTrendChart({ title, points }: { title: string; points: Practice
             {recentPoints.map((point) => (
               <div className="attempt-mini-row" key={point.id}>
                 <b>#{point.sequence}</b>
-                <span>{point.date.slice(5)}</span>
+                <span>{formatDateAxisLabel(point.date)}</span>
                 <span>{point.minutes}min</span>
                 <span>{point.accuracy ?? "-"}%</span>
               </div>
@@ -2241,7 +2242,7 @@ function RecordTrendChart({
                 .filter(({ index }) => index === 0 || index === periods.length - 1 || index % tickEvery === 0)
                 .map(({ period, index }) => (
                   <text className="record-x-label" key={period.period} x={getX(index)} y={chartHeight - 16}>
-                    {period.label}
+                    {formatPeriodAxisLabel(period)}
                   </text>
                 ))}
             </svg>

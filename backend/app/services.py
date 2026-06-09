@@ -42,6 +42,14 @@ def month_bounds(year: int, month: int) -> tuple[date, date]:
     return date(year, month, 1), date(year, month, last_day)
 
 
+def date_axis_label(start: date, end: date | None = None) -> str:
+    if end is None or start == end:
+        return start.strftime("%m/%d")
+    if start.year != end.year:
+        return f"{start.strftime('%Y/%m/%d')}-{end.strftime('%Y/%m/%d')}"
+    return f"{start.strftime('%m/%d')}-{end.strftime('%m/%d')}"
+
+
 PRACTICE_TAG_LABELS: dict[str, str] = {
     "data_analysis": "资料分析",
     "quantitative": "数量关系",
@@ -1086,12 +1094,14 @@ def weekly_record_periods(year: int, month: int) -> list[dict]:
             seen.add(key)
             week_start = cursor - timedelta(days=cursor.weekday())
             week_end = week_start + timedelta(days=6)
+            period_start = max(week_start, start)
+            period_end = min(week_end, end)
             periods.append(
                 {
                     "key": f"{iso_year}-W{iso_week:02d}",
-                    "label": f"W{iso_week:02d}",
-                    "start": max(week_start, start),
-                    "end": min(week_end, end),
+                    "label": date_axis_label(period_start, period_end),
+                    "start": period_start,
+                    "end": period_end,
                 }
             )
         cursor += timedelta(days=1)
@@ -1105,7 +1115,7 @@ def monthly_record_periods(year: int) -> list[dict]:
         periods.append(
             {
                 "key": f"{year}-{month:02d}",
-                "label": f"{month}月",
+                "label": date_axis_label(start, end),
                 "start": start,
                 "end": end,
             }
@@ -1122,7 +1132,7 @@ def daily_record_periods(start: date, end: date) -> list[dict]:
         periods.append(
             {
                 "key": cursor.isoformat(),
-                "label": cursor.strftime("%m-%d"),
+                "label": date_axis_label(cursor),
                 "start": cursor,
                 "end": cursor,
             }

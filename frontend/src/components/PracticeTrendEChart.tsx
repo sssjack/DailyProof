@@ -11,6 +11,7 @@ import {
 import { CanvasRenderer } from "echarts/renderers";
 import type { PracticeTrendPoint } from "../lib/api";
 import { getEChartsTheme, baseChartOption } from "../lib/chartTheme";
+import { formatDateAxisLabel } from "../lib/dateLabels";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, CanvasRenderer]);
 
@@ -33,9 +34,10 @@ export function PracticeTrendEChart({
   }
 
   const targetMinutes = points.find((p) => p.target_minutes)?.target_minutes || null;
-  const labels = points.map((p) => `#${p.sequence}`);
+  const labels = points.map((p) => formatDateAxisLabel(p.date));
   const minutesData = points.map((p) => p.minutes);
   const accuracyData = points.map((p) => p.accuracy);
+  const categoryAxis = theme.categoryAxis as { axisLabel?: object };
 
   const option = baseChartOption({
     tooltip: {
@@ -44,12 +46,18 @@ export function PracticeTrendEChart({
       formatter: (params: unknown) => {
         const items = params as Array<{ dataIndex: number; seriesName: string; value: number | null; color: string }>;
         const p = points[items[0].dataIndex];
-        return `<b>${p.date} 第 ${p.sequence} 次</b><br/>`
+        return `<b>${formatDateAxisLabel(p.date, true)} 第 ${p.sequence} 次</b><br/>`
           + items.map((i) => `<span style="color:${i.color}">●</span> ${i.seriesName}: ${i.value ?? "-"}${i.seriesName === "用时" ? "min" : "%"}`).join("<br/>");
       },
     },
     legend: { ...theme.legend as object, data: ["用时", "正确率"], top: 4, right: 20 },
-    xAxis: { ...theme.categoryAxis as object, type: "category", data: labels, boundaryGap: false },
+    xAxis: {
+      ...categoryAxis,
+      type: "category",
+      data: labels,
+      boundaryGap: false,
+      axisLabel: { ...categoryAxis.axisLabel, hideOverlap: true },
+    },
     yAxis: [
       { ...theme.valueAxis as object, type: "value", name: "分钟", min: 0, splitNumber: 4 },
       { ...theme.valueAxis as object, type: "value", name: "%", min: 0, max: 100, splitNumber: 4 },
@@ -111,7 +119,7 @@ export function PracticeTrendEChart({
         {recentPoints.map((point) => (
           <div className="attempt-mini-row" key={point.id}>
             <b>#{point.sequence}</b>
-            <span>{point.date.slice(5)}</span>
+            <span>{formatDateAxisLabel(point.date)}</span>
             <span>{point.minutes}min</span>
             <span>{point.accuracy ?? "-"}%</span>
           </div>

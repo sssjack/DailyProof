@@ -11,6 +11,7 @@ import {
 import { CanvasRenderer } from "echarts/renderers";
 import type { PracticeRecordStats } from "../lib/api";
 import { getEChartsTheme, baseChartOption, CATEGORY_COLORS } from "../lib/chartTheme";
+import { formatPeriodAxisLabel } from "../lib/dateLabels";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, CanvasRenderer]);
 
@@ -44,6 +45,7 @@ export function RecordTrendEChart({
   const periods = stats?.periods || [];
   const series = stats?.category_summary || [];
   const visibleSeries = series.filter((row) => row.record_count > 0 || row.trend.some((p) => p.record_count > 0));
+  const categoryAxis = theme.categoryAxis as { axisLabel?: object };
 
   if (!visibleSeries.length) {
     return (
@@ -54,7 +56,7 @@ export function RecordTrendEChart({
     );
   }
 
-  const labels = periods.map((p) => p.label);
+  const labels = periods.map((p) => formatPeriodAxisLabel(p));
   const maxMinutes = Math.max(
     30,
     Math.ceil(Math.max(...series.flatMap((r) => r.trend.map((p) => Number(p.minutes || 0))), 0) / 10) * 10
@@ -66,6 +68,13 @@ export function RecordTrendEChart({
     tooltip: {
       ...theme.tooltip as object,
       trigger: "axis",
+      formatter: (params: unknown) => {
+        const items = params as Array<{ dataIndex: number; seriesName: string; value: number | null; color: string }>;
+        const period = periods[items[0]?.dataIndex || 0];
+        const unit = metric === "accuracy" ? "%" : "min";
+        return `<b>${formatPeriodAxisLabel(period, true)}</b><br/>`
+          + items.map((item) => `<span style="color:${item.color}">●</span> ${item.seriesName}: ${item.value ?? "-"}${unit}`).join("<br/>");
+      },
     },
     legend: {
       ...theme.legend as object,
@@ -74,7 +83,13 @@ export function RecordTrendEChart({
       right: 20,
       type: "scroll",
     },
-    xAxis: { ...theme.categoryAxis as object, type: "category", data: labels, boundaryGap: false },
+    xAxis: {
+      ...categoryAxis,
+      type: "category",
+      data: labels,
+      boundaryGap: false,
+      axisLabel: { ...categoryAxis.axisLabel, hideOverlap: true },
+    },
     yAxis: {
       ...theme.valueAxis as object,
       type: "value",
