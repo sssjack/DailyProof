@@ -298,7 +298,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell" data-theme={theme}>
+    <div className={`app-shell ${view === "notes" ? "notes-shell" : ""}`} data-theme={theme}>
       <TopBar user={user} view={view} setView={setView} logout={logout} theme={theme} setTheme={setTheme} />
       {view === "home" && (
         <Landing
@@ -2497,11 +2497,11 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   };
 
   return (
-    <main className="workspace sticky-workspace">
+    <main className="workspace sticky-workspace paper-notes-workspace">
       <div className="page-head sticky-head">
         <div>
-          <p className="eyebrow">Sticky notes</p>
-          <h1>把今天摊开，完成一项就划掉一项。</h1>
+          <p className="eyebrow">Paper notes</p>
+          <h1>Daily focus</h1>
         </div>
         <div className="sticky-date-controls">
           <button className="icon-btn" title="前一天" onClick={() => shiftDate(-1)}>
@@ -2550,13 +2550,10 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
       <div className="sticky-layout">
         <section className={`sticky-paper ${turningPage ? "turning" : ""}`} data-turn={turnDirection === 1 ? "next" : "prev"}>
           <span className="sticky-turn-sheet" aria-hidden="true" />
-          <div className="sticky-binding" aria-hidden="true">
-            {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
-          </div>
-          <div className="sticky-tape" />
+          <span className="sticky-pushpin" aria-hidden="true"><i /></span>
           <div className="sticky-paper-head">
             <div>
-              <span>{formatStickyWeekday(noteDate)}</span>
+              <span>{formatStickyWeekday(noteDate)} · {completion}% done</span>
               <h2>{formatStickyDate(noteDate)}</h2>
             </div>
             <div className="sticky-head-actions">
@@ -2675,7 +2672,11 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
 
           <div className="sticky-page-controls">
             <button type="button" onClick={() => turnPage(-1)} disabled={turningPage || currentPage === 0}>上一页</button>
-            <span>第 {currentPage + 1} / {totalPages} 页</span>
+            <span className="sticky-page-dots" aria-label={`第 ${currentPage + 1} / ${totalPages} 页`}>
+              {Array.from({ length: totalPages }, (_, index) => (
+                <i className={index === currentPage ? "active" : ""} key={index} />
+              ))}
+            </span>
             <button type="button" onClick={() => turnPage(1)} disabled={turningPage || currentPage >= totalPages - 1}>下一页</button>
           </div>
           <button className="sticky-page-curl" type="button" title="翻页" onClick={() => turnPage(currentPage >= totalPages - 1 ? -1 : 1)} disabled={turningPage}>
@@ -2686,6 +2687,7 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
 
         <aside className="sticky-right-rail">
         <div className={`sticky-advice ${adviceIsAi ? "is-ai" : "is-fallback"}`}>
+          <span className="sticky-blue-pin" aria-hidden="true" />
           <div>
             <span>{adviceLabel}</span>
             <button className="text-btn" type="button" onClick={refreshAdvice}>
@@ -2695,10 +2697,10 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           <p>{note?.ai_advice || "新增事项后会生成今日建议。"}</p>
         </div>
 
-        <aside className="panel sticky-side-panel">
-          <div className="panel-title">
-            <h2>今日状态</h2>
-            <span>{note?.pending_count || 0} 项未完成</span>
+        <aside className="sticky-side-panel">
+          <div className="sticky-status-title">
+            <h2>Today</h2>
+            <span>{note?.pending_count || 0} pending</span>
           </div>
           <div className="sticky-status-grid">
             <div>
