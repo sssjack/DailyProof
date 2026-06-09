@@ -1,0 +1,55 @@
+<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DailyProof workflow">
+  <defs>
+    <linearGradient id="flowBg" x1="0" y1="0" x2="1200" y2="420">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#f0fdfa"/>
+    </linearGradient>
+    <linearGradient id="flowAccent" x1="130" y1="100" x2="1060" y2="320">
+      <stop stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="flowShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" rx="30" fill="url(#flowBg)"/>
+  <text x="74" y="78" fill="#0f172a" font-family="Arial, sans-serif" font-size="34" font-weight="900">从目标到证据的闭环</text>
+  <text x="74" y="112" fill="#64748b" font-family="Arial, sans-serif" font-size="17">DailyProof 不只是记录结果，而是让计划、执行、复盘和下一步建议持续循环。</text>
+  <path d="M198 230 H990" stroke="url(#flowAccent)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M990 230 L960 212 V248 L990 230Z" fill="#22d3ee"/>
+  <g filter="url(#flowShadow)">
+    <rect x="72" y="166" width="184" height="128" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="92" y="186" width="44" height="44" rx="14" fill="#eef2ff"/>
+    <text x="108" y="215" fill="#4f46e5" font-family="Arial, sans-serif" font-size="20" font-weight="900">1</text>
+    <text x="92" y="252" fill="#0f172a" font-family="Arial, sans-serif" font-size="21" font-weight="900">月度目标</text>
+    <text x="92" y="276" fill="#64748b" font-family="Arial, sans-serif" font-size="14">目标 / 节奏 / 指标</text>
+  </g>
+  <g filter="url(#flowShadow)">
+    <rect x="292" y="166" width="184" height="128" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="312" y="186" width="44" height="44" rx="14" fill="#ecfeff"/>
+    <text x="328" y="215" fill="#0891b2" font-family="Arial, sans-serif" font-size="20" font-weight="900">2</text>
+    <text x="312" y="252" fill="#0f172a" font-family="Arial, sans-serif" font-size="21" font-weight="900">每日执行</text>
+    <text x="312" y="276" fill="#64748b" font-family="Arial, sans-serif" font-size="14">事项 / 刷题 / 倒计时</text>
+  </g>
+  <g filter="url(#flowShadow)">
+    <rect x="512" y="166" width="184" height="128" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="532" y="186" width="44" height="44" rx="14" fill="#fdf2f8"/>
+    <text x="548" y="215" fill="#db2777" font-family="Arial, sans-serif" font-size="20" font-weight="900">3</text>
+    <text x="532" y="252" fill="#0f172a" font-family="Arial, sans-serif" font-size="21" font-weight="900">数据记录</text>
+    <text x="532" y="276" fill="#64748b" font-family="Arial, sans-serif" font-size="14">题量 / 用时 / 正确率</text>
+  </g>
+  <g filter="url(#flowShadow)">
+    <rect x="732" y="166" width="184" height="128" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="752" y="186" width="44" height="44" rx="14" fill="#fef9c3"/>
+    <text x="768" y="215" fill="#ca8a04" font-family="Arial, sans-serif" font-size="20" font-weight="900">4</text>
+    <text x="752" y="252" fill="#0f172a" font-family="Arial, sans-serif" font-size="21" font-weight="900">统计洞察</text>
+    <text x="752" y="276" fill="#64748b" font-family="Arial, sans-serif" font-size="14">趋势 / 对比 / 异常</text>
+  </g>
+  <g filter="url(#flowShadow)">
+    <rect x="952" y="166" width="184" height="128" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="972" y="186" width="44" height="44" rx="14" fill="#dcfce7"/>
+    <text x="988" y="215" fill="#16a34a" font-family="Arial, sans-serif" font-size="20" font-weight="900">5</text>
+    <text x="972" y="252" fill="#0f172a" font-family="Arial, sans-serif" font-size="21" font-weight="900">下一步建议</text>
+    <text x="972" y="276" fill="#64748b" font-family="Arial, sans-serif" font-size="14">AI 教练 / 复盘优化</text>
+  </g>
+</svg>

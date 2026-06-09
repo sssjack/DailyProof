@@ -1,0 +1,65 @@
+<svg width="1200" height="640" viewBox="0 0 1200 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DailyProof product overview">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="0.48" stop-color="#eef7ff"/>
+      <stop offset="1" stop-color="#effcf8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="138" y1="80" x2="1040" y2="580" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff8c9"/>
+      <stop offset="1" stop-color="#ffe07a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#334155" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="640" rx="34" fill="url(#bg)"/>
+  <circle cx="1030" cy="120" r="150" fill="#c7f9ff" opacity="0.5"/>
+  <circle cx="180" cy="520" r="160" fill="#e0e7ff" opacity="0.7"/>
+  <rect x="82" y="70" width="1036" height="500" rx="30" fill="white" fill-opacity="0.76" stroke="#dbeafe" filter="url(#shadow)"/>
+  <rect x="116" y="104" width="150" height="432" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+  <rect x="140" y="132" width="42" height="42" rx="14" fill="url(#accent)"/>
+  <text x="153" y="160" fill="#ffffff" font-family="Arial, sans-serif" font-size="22" font-weight="700">D</text>
+  <text x="196" y="159" fill="#0f172a" font-family="Arial, sans-serif" font-size="22" font-weight="800">DailyProof</text>
+  <rect x="138" y="208" width="104" height="36" rx="14" fill="#111827"/>
+  <text x="166" y="231" fill="#ffffff" font-family="Arial, sans-serif" font-size="15" font-weight="700">Home</text>
+  <text x="164" y="286" fill="#64748b" font-family="Arial, sans-serif" font-size="15" font-weight="700">Notes</text>
+  <text x="164" y="342" fill="#64748b" font-family="Arial, sans-serif" font-size="15" font-weight="700">Records</text>
+  <text x="164" y="398" fill="#64748b" font-family="Arial, sans-serif" font-size="15" font-weight="700">Analytics</text>
+  <rect x="310" y="110" width="430" height="180" rx="24" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="340" y="150" fill="#6366f1" font-family="Arial, sans-serif" font-size="14" font-weight="800" letter-spacing="4">TODAY PROOF</text>
+  <text x="340" y="198" fill="#0f172a" font-family="Arial, sans-serif" font-size="36" font-weight="900">让今天成为证据</text>
+  <text x="340" y="232" fill="#64748b" font-family="Arial, sans-serif" font-size="17">月计划、倒计时、做题记录和复盘数据汇聚在一个工作台。</text>
+  <rect x="340" y="254" width="120" height="28" rx="14" fill="#eef2ff"/>
+  <text x="361" y="273" fill="#4f46e5" font-family="Arial, sans-serif" font-size="14" font-weight="700">27min 目标</text>
+  <rect x="474" y="254" width="126" height="28" rx="14" fill="#ecfeff"/>
+  <text x="494" y="273" fill="#0891b2" font-family="Arial, sans-serif" font-size="14" font-weight="700">90% 正确率</text>
+  <rect x="770" y="110" width="278" height="180" rx="24" fill="url(#paper)" stroke="#f2c94c"/>
+  <rect x="842" y="126" width="76" height="22" rx="4" fill="#fff" fill-opacity="0.55"/>
+  <text x="808" y="176" fill="#172033" font-family="'Comic Sans MS', 'KaiTi', cursive" font-size="28" font-weight="700">2026 年 6 月 9 日</text>
+  <circle cx="808" cy="222" r="13" stroke="#978a4a"/>
+  <text x="836" y="229" fill="#172033" font-family="'Comic Sans MS', 'KaiTi', cursive" font-size="21">数量关系错题复盘</text>
+  <circle cx="808" cy="258" r="13" stroke="#978a4a"/>
+  <text x="836" y="265" fill="#172033" font-family="'Comic Sans MS', 'KaiTi', cursive" font-size="21">刷资料分析题</text>
+  <rect x="310" y="324" width="222" height="170" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="338" y="360" fill="#0f172a" font-family="Arial, sans-serif" font-size="22" font-weight="900">做题记录</text>
+  <text x="338" y="392" fill="#64748b" font-family="Arial, sans-serif" font-size="15">题量、正确数、用时、错因标签</text>
+  <rect x="338" y="424" width="42" height="42" rx="12" fill="#eef2ff"/>
+  <text x="349" y="451" fill="#4f46e5" font-family="Arial, sans-serif" font-size="18" font-weight="900">90%</text>
+  <rect x="396" y="424" width="42" height="42" rx="12" fill="#ecfeff"/>
+  <text x="410" y="451" fill="#0891b2" font-family="Arial, sans-serif" font-size="18" font-weight="900">27</text>
+  <rect x="554" y="324" width="222" height="170" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="582" y="360" fill="#0f172a" font-family="Arial, sans-serif" font-size="22" font-weight="900">趋势图表</text>
+  <polyline points="586,450 620,424 654,438 688,386 722,404 752,366" stroke="#22d3ee" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="586,468 620,458 654,444 688,454 722,426 752,414" stroke="#ec4899" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="798" y="324" width="250" height="170" rx="22" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="826" y="360" fill="#0f172a" font-family="Arial, sans-serif" font-size="22" font-weight="900">Insight Feed</text>
+  <rect x="826" y="386" width="172" height="18" rx="9" fill="#eef2ff"/>
+  <rect x="826" y="418" width="132" height="18" rx="9" fill="#ecfeff"/>
+  <rect x="826" y="450" width="194" height="18" rx="9" fill="#fdf2f8"/>
+  <text x="100" y="606" fill="#64748b" font-family="Arial, sans-serif" font-size="18">DailyProof = 计划执行 + 做题记录 + 便签清单 + 统计洞察</text>
+</svg>
