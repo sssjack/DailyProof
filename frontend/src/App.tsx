@@ -2296,6 +2296,8 @@ function formatStickyWeekday(value: string) {
   return date.toLocaleDateString("zh-CN", { weekday: "long" });
 }
 
+const STICKY_ITEMS_PER_PAGE = 5;
+
 function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const today = new Date();
   const [noteDate, setNoteDate] = useState(toDateKey(today));
@@ -2303,11 +2305,25 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const [historyNotes, setHistoryNotes] = useState<StickyNote[]>([]);
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editTitles, setEditTitles] = useState<Record<number, string>>({});
+  const [currentPage, setCurrentPage] = useState(0);
+  const [turningPage, setTurningPage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const draftItems = parseStickyDraft(draft);
   const completion = note?.item_count ? Math.round(((note.done_count || 0) * 100) / note.item_count) : 0;
+  const todayKey = toDateKey(new Date());
+  const isTodayNote = noteDate === todayKey;
+  const canEdit = isTodayNote && !historyOpen;
+  const sortedItems = note?.items || [];
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / STICKY_ITEMS_PER_PAGE));
+  const pageItems = sortedItems.slice(currentPage * STICKY_ITEMS_PER_PAGE, (currentPage + 1) * STICKY_ITEMS_PER_PAGE);
+  const shouldShowDraft = canEdit && !note?.item_count;
+  const wallNotes = note
+    ? [note, ...historyNotes.filter((item) => item.date !== note.date)]
+    : historyNotes;
 
   const loadNote = async (target = noteDate) => {
     const nextNote = await api<StickyNote>(`/sticky-notes?day=${target}`);
@@ -2326,6 +2342,17 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     loadNote().catch((err) => toast(err instanceof Error ? err.message : "读取便签失败"));
     loadHistory().catch(() => undefined);
   }, [noteDate]);
+
+  useEffect(() => {
+    setEditMode(false);
+    setCurrentPage(0);
+    setDraft("");
+  }, [noteDate]);
+
+  useEffect(() => {
+    setEditTitles(Object.fromEntries((note?.items || []).map((item) => [item.id, item.title])));
+    setCurrentPage((page) => Math.min(page, totalPages - 1));
+  }, [note?.id, note?.items, totalPages]);
 
   const shiftDate = (days: number) => {
     setNoteDate(toDateKey(addDays(dateFromKey(noteDate), days)));
@@ -2381,7 +2408,28 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
       loadNote().catch(() => undefined);
       toast(err instanceof Error ? err.message : "更新事项失败");
     } finally {
-      window.setTimeout(() => setTogglingId(null), 260);
+      window.setTimeout(() => setTogglingId(null), 620);
+    }
+  };
+
+  const updateItemTitle = async (item: StickyNoteItem) => {
+    const title = (editTitles[item.id] || "").trim();
+    if (!title) {
+      toast("事项内容不能为空");
+      setEditTitles((current) => ({ ...current, [item.id]: item.title }));
+      return;
+    }
+    if (title === item.title) return;
+    try {
+      const nextNote = await api<StickyNote>(`/sticky-notes/items/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title })
+      });
+      setNote(nextNote);
+      loadHistory().catch(() => undefined);
+    } catch (err) {
+      setEditTitles((current) => ({ ...current, [item.id]: item.title }));
+      toast(err instanceof Error ? err.message : "修改事项失败");
     }
   };
 
@@ -2394,6 +2442,16 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     } catch (err) {
       toast(err instanceof Error ? err.message : "删除事项失败");
     }
+  };
+
+  const turnPage = (direction: 1 | -1) => {
+    const nextPage = currentPage + direction;
+    if (nextPage < 0 || nextPage >= totalPages) return;
+    setTurningPage(true);
+    window.setTimeout(() => {
+      setCurrentPage(nextPage);
+      setTurningPage(false);
+    }, 180);
   };
 
   const refreshAdvice = async () => {
@@ -2426,20 +2484,62 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
         </div>
       </div>
 
+      {historyOpen ? (
+        <section className="sticky-history-wall" aria-label="历史便签墙">
+          <div className="panel-title">
+            <h2>便签墙</h2>
+            <span>{wallNotes.length} 张便签</span>
+          </div>
+          <div className="sticky-wall-grid">
+            {wallNotes.length ? (
+              wallNotes.map((item, index) => (
+                <button
+                  className={`sticky-wall-card ${item.date === noteDate ? "current active" : ""}`}
+                  key={item.id}
+                  style={{ "--rotate": `${(index % 5) - 2}deg` } as CSSProperties}
+                  type="button"
+                  onClick={() => {
+                    setNoteDate(item.date);
+                    setHistoryOpen(false);
+                  }}
+                >
+                  <span>{item.date.replace(/-/g, "/")}</span>
+                  <b>{item.done_count}/{item.item_count}</b>
+                  <small>{item.pending_count ? `${item.pending_count} 项未完成` : "已清空"}</small>
+                  <i />
+                </button>
+              ))
+            ) : (
+              <div className="empty-state small">暂时还没有历史便签。</div>
+            )}
+          </div>
+        </section>
+      ) : (
       <div className="sticky-layout">
-        <section className="sticky-paper">
+        <section className={`sticky-paper ${turningPage ? "turning" : ""}`}>
+          <div className="sticky-binding" aria-hidden="true">
+            {Array.from({ length: 8 }, (_, index) => <i key={index} />)}
+          </div>
           <div className="sticky-tape" />
           <div className="sticky-paper-head">
             <div>
               <span>{formatStickyWeekday(noteDate)}</span>
               <h2>{formatStickyDate(noteDate)}</h2>
             </div>
-            <div className="sticky-progress" aria-label="完成进度">
-              <b>{completion}%</b>
-              <span>{note?.done_count || 0}/{note?.item_count || 0}</span>
+            <div className="sticky-head-actions">
+              <div className="sticky-progress" aria-label="完成进度">
+                <b>{completion}%</b>
+                <span>{note?.done_count || 0}/{note?.item_count || 0}</span>
+              </div>
+              {canEdit && note?.item_count ? (
+                <button className={`sticky-edit-btn ${editMode ? "active" : ""}`} type="button" onClick={() => setEditMode((value) => !value)}>
+                  <FilePenLine size={15} /> {editMode ? "完成" : "编辑"}
+                </button>
+              ) : null}
             </div>
           </div>
 
+          {shouldShowDraft ? (
           <div className="sticky-draft">
             <textarea
               value={draft}
@@ -2454,27 +2554,58 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
               </button>
             </div>
           </div>
+          ) : null}
 
           <div className="sticky-list">
-            {note?.items.length ? (
-              note.items.map((item) => (
+            {pageItems.length ? (
+              pageItems.map((item) => (
                 <article className={`sticky-task ${item.is_done ? "done" : ""} ${togglingId === item.id ? "just-toggled" : ""}`} key={item.id}>
-                  <button className="sticky-check" type="button" aria-label={item.is_done ? "取消完成" : "标记完成"} onClick={() => toggleItem(item)}>
+                  <button
+                    className="sticky-check"
+                    type="button"
+                    aria-label={item.is_done ? "取消完成" : "标记完成"}
+                    onClick={() => toggleItem(item)}
+                    disabled={!isTodayNote || editMode}
+                  >
                     {item.is_done && <Check size={16} />}
                   </button>
-                  <span className="sticky-task-text">{item.title}</span>
+                  {editMode && canEdit ? (
+                    <input
+                      className="sticky-task-edit"
+                      value={editTitles[item.id] ?? item.title}
+                      onChange={(event) => setEditTitles((current) => ({ ...current, [item.id]: event.target.value }))}
+                      onBlur={() => updateItemTitle(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                      }}
+                    />
+                  ) : (
+                    <span className="sticky-task-text">{item.title}</span>
+                  )}
+                  {togglingId === item.id && item.is_done && <span className="sticky-pencil" aria-hidden="true" />}
+                  {editMode && canEdit ? (
                   <button className="sticky-delete" title="删除" type="button" onClick={() => deleteItem(item)}>
                     <Trash2 size={15} />
                   </button>
+                  ) : <span className="sticky-task-spacer" />}
                 </article>
               ))
             ) : (
               <div className="sticky-empty">
                 <b>今天还没有事项</b>
-                <span>写下三件事，便签就开始有温度了。</span>
+                <span>{isTodayNote ? "加入今日事项，便签就开始有温度了。" : "这一天还没有留下事项。"}</span>
               </div>
             )}
           </div>
+
+          <div className="sticky-page-controls">
+            <button type="button" onClick={() => turnPage(-1)} disabled={currentPage === 0}>上一页</button>
+            <span>第 {currentPage + 1} / {totalPages} 页</span>
+            <button type="button" onClick={() => turnPage(1)} disabled={currentPage >= totalPages - 1}>下一页</button>
+          </div>
+          <button className="sticky-page-curl" type="button" title="翻页" onClick={() => turnPage(currentPage >= totalPages - 1 ? -1 : 1)}>
+            <span>{currentPage + 1}</span>
+          </button>
 
           <div className="sticky-advice">
             <div>
@@ -2514,34 +2645,6 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </div>
         </aside>
       </div>
-
-      {historyOpen && (
-        <section className="sticky-history-wall" aria-label="历史便签墙">
-          <div className="panel-title">
-            <h2>历史便签墙</h2>
-            <span>{historyNotes.length} 张便签</span>
-          </div>
-          <div className="sticky-wall-grid">
-            {historyNotes.length ? (
-              historyNotes.map((item, index) => (
-                <button
-                  className={`sticky-wall-card ${item.date === noteDate ? "active" : ""}`}
-                  key={item.id}
-                  style={{ "--rotate": `${(index % 5) - 2}deg` } as CSSProperties}
-                  type="button"
-                  onClick={() => setNoteDate(item.date)}
-                >
-                  <span>{item.date.replace(/-/g, "/")}</span>
-                  <b>{item.done_count}/{item.item_count}</b>
-                  <small>{item.pending_count ? `${item.pending_count} 项未完成` : "已清空"}</small>
-                  <i />
-                </button>
-              ))
-            ) : (
-              <div className="empty-state small">暂时还没有历史便签。</div>
-            )}
-          </div>
-        </section>
       )}
     </main>
   );
