@@ -2930,6 +2930,14 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const categoryRows = stats?.category_summary || buildEmptyRecordCategories();
   const activeCategories = categoryRows.filter((row) => row.record_count > 0).length;
   const scopeLabel = scope === "day" ? statsDay.replace(/-/g, "/") : scope === "week" ? `${year}年${month}月` : `${year}年`;
+  const latestRecordDate = records[0]?.date;
+
+  const switchRecordScope = (nextScope: RecordScope) => {
+    if (nextScope === "day" && scope !== "day") {
+      setStatsDay(latestRecordDate || toDateKey(new Date()));
+    }
+    setScope(nextScope);
+  };
 
   return (
     <main className="workspace records-workspace">
@@ -2940,9 +2948,9 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         </div>
         <div className="record-scope-controls">
           <div className="segmented">
-            <button className={scope === "day" ? "active" : ""} onClick={() => setScope("day")}>按日</button>
-            <button className={scope === "week" ? "active" : ""} onClick={() => setScope("week")}>按周</button>
-            <button className={scope === "month" ? "active" : ""} onClick={() => setScope("month")}>按月</button>
+            <button className={scope === "day" ? "active" : ""} onClick={() => switchRecordScope("day")}>按日</button>
+            <button className={scope === "week" ? "active" : ""} onClick={() => switchRecordScope("week")}>按周</button>
+            <button className={scope === "month" ? "active" : ""} onClick={() => switchRecordScope("month")}>按月</button>
           </div>
           {scope === "day" ? (
             <input className="record-day-input" type="date" value={statsDay} onChange={(event) => setStatsDay(event.target.value || toDateKey(new Date()))} />
