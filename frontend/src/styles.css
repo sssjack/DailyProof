@@ -3707,6 +3707,10 @@ select {
   width: 106px;
 }
 
+.record-scope-controls .record-day-input {
+  width: 156px;
+}
+
 .records-metrics {
   grid-template-columns: repeat(5, minmax(150px, 1fr));
 }
@@ -4632,6 +4636,10 @@ select {
 }
 
 .record-category-panel {
+  margin-top: 16px;
+}
+
+.record-table-bottom {
   margin-top: 16px;
 }
 
@@ -7117,6 +7125,59 @@ select {
   background: rgba(46, 92, 184, 0.07);
 }
 
+.paper-notes-workspace .sticky-wall-panel {
+  order: 3;
+  transform: rotate(1deg);
+}
+
+.paper-notes-workspace .sticky-wall-panel .text-btn {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 1px solid #e5dfd4;
+  border-radius: 2px;
+  color: #49473f;
+  background: rgba(255, 255, 255, 0.48);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.sticky-wall-mini {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.sticky-wall-mini button,
+.sticky-wall-mini > span {
+  display: grid;
+  min-height: 54px;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid rgba(98, 95, 79, 0.13);
+  border-radius: 2px;
+  padding: 8px;
+  color: #49473f;
+  background: linear-gradient(135deg, #fff8bd, #f6e990);
+  box-shadow: 3px 4px 8px rgba(49, 48, 47, 0.08);
+  text-align: left;
+}
+
+.sticky-wall-mini button:nth-child(2n) {
+  background: linear-gradient(135deg, #dff6ff, #bfeaff);
+}
+
+.sticky-wall-mini span {
+  color: rgba(73, 71, 63, 0.68);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.sticky-wall-mini b {
+  color: #353126;
+  font-family: "Epilogue", "Avenir Next", sans-serif;
+  font-size: 14px;
+}
+
 @media (max-width: 1020px) {
   .paper-notes-workspace {
     padding-inline: clamp(14px, 4vw, 28px);
@@ -7639,6 +7700,29 @@ select {
   color: color-mix(in srgb, var(--text) 78%, var(--muted));
   font-size: 0.78rem;
   line-height: 1.5;
+}
+
+.calendar-record-entries .calendar-record-card {
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  min-height: 76px;
+  align-items: center;
+  padding: 10px;
+}
+
+.calendar-record-card > div {
+  min-width: 0;
+}
+
+.calendar-record-card strong {
+  color: var(--accent);
+  font-family: var(--title-font);
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.calendar-record-card small,
+.calendar-record-card p {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 720px) {

@@ -1234,7 +1234,7 @@ function PracticeTrendChart({ title, points }: { title: string; points: Practice
   );
 }
 
-type RecordScope = "week" | "month";
+type RecordScope = "day" | "week" | "month";
 type RecordMetric = "minutes" | "accuracy";
 type AnalyticsMode = "tasks" | "records";
 type RecordRangePreset = "this_week" | "last_week" | "this_month" | "last_month" | "last_30" | "last_90" | "custom";
@@ -1316,6 +1316,12 @@ function categoryColor(category: string) {
 
 function formatRecordAccuracy(value: number | null | undefined) {
   return value === null || value === undefined ? "-" : `${value}%`;
+}
+
+function recordScopeName(scope: RecordScope) {
+  if (scope === "day") return "每日";
+  if (scope === "week") return "每周";
+  return "每月";
 }
 
 function buildEmptyRecordCategories() {
@@ -2357,6 +2363,8 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const wallNotes = note
     ? [note, ...historyNotes.filter((item) => item.date !== note.date)]
     : historyNotes;
+  const adviceIsAi = note?.ai_advice_source === "ai";
+  const adviceLabel = adviceIsAi ? "AI 建议" : "本地建议";
 
   const loadNote = async (target = noteDate) => {
     const nextNote = await api<StickyNote>(`/sticky-notes?day=${target}`);
@@ -2513,6 +2521,16 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     window.setTimeout(() => setTurningPage(false), 640);
   };
 
+  const refreshAdvice = async () => {
+    try {
+      const nextNote = await api<StickyNote>(`/sticky-notes/${noteDate}/advice`, { method: "POST" });
+      setNote(nextNote);
+      toast("建议已更新");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "生成建议失败");
+    }
+  };
+
   return (
     <main className="workspace sticky-workspace paper-notes-workspace">
       {historyOpen ? (
@@ -2547,7 +2565,7 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </div>
         </section>
       ) : (
-      <div className="sticky-layout sticky-layout-single">
+      <div className="sticky-layout sticky-layout-with-rail">
         <section className={`sticky-paper ${turningPage ? "turning" : ""}`} data-turn={turnDirection === 1 ? "next" : "prev"}>
           <span className="sticky-turn-sheet" aria-hidden="true" />
           <span className="sticky-pushpin" aria-hidden="true"><i /></span>
@@ -2695,6 +2713,61 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           </button>
 
         </section>
+        <aside className="sticky-right-rail">
+          <div className={`sticky-advice ${adviceIsAi ? "is-ai" : "is-fallback"}`}>
+            <span className="sticky-blue-pin" aria-hidden="true" />
+            <div>
+              <span>{adviceLabel}</span>
+              <button className="text-btn" type="button" onClick={refreshAdvice}>
+                <RefreshCw size={14} /> 更新
+              </button>
+            </div>
+            <p>{note?.ai_advice || "新增事项后会生成今日建议。"}</p>
+          </div>
+
+          <aside className="sticky-side-panel">
+            <div className="sticky-status-title">
+              <h2>完成情况</h2>
+              <span>{note?.pending_count || 0} pending</span>
+            </div>
+            <div className="sticky-status-grid">
+              <div>
+                <b>{note?.item_count || 0}</b>
+                <span>总事项</span>
+              </div>
+              <div>
+                <b>{note?.done_count || 0}</b>
+                <span>已完成</span>
+              </div>
+              <div>
+                <b>{note?.pending_count || 0}</b>
+                <span>待处理</span>
+              </div>
+            </div>
+            <div className="sticky-preview-lines">
+              {(note?.items || []).slice(0, 5).map((item) => (
+                <span className={item.is_done ? "done" : ""} key={item.id}>{item.title}</span>
+              ))}
+              {!note?.items.length && <span>还没有写下事项</span>}
+            </div>
+          </aside>
+
+          <aside className="sticky-side-panel sticky-wall-panel">
+            <div className="sticky-status-title">
+              <h2>便签墙</h2>
+              <button className="text-btn" type="button" onClick={() => setHistoryOpen(true)}>查看全部</button>
+            </div>
+            <div className="sticky-wall-mini">
+              {wallNotes.slice(0, 4).map((item) => (
+                <button key={item.id} type="button" onClick={() => setNoteDate(item.date)}>
+                  <span>{item.date.slice(5).replace("-", "/")}</span>
+                  <b>{item.done_count}/{item.item_count}</b>
+                </button>
+              ))}
+              {!wallNotes.length && <span>暂时还没有历史便签</span>}
+            </div>
+          </aside>
+        </aside>
       </div>
       )}
     </main>
@@ -2706,6 +2779,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const [scope, setScope] = useState<RecordScope>("week");
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [statsDay, setStatsDay] = useState(toDateKey(today));
   const [stats, setStats] = useState<PracticeRecordStats | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [recordDate, setRecordDate] = useState(toDateKey(today));
@@ -2718,14 +2792,18 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
-    const params = new URLSearchParams({ scope, year: String(year), month: String(month) });
+    const params = new URLSearchParams({ scope: scope === "day" ? "range" : scope, year: String(year), month: String(month) });
+    if (scope === "day") {
+      params.set("start_date", statsDay);
+      params.set("end_date", statsDay);
+    }
     const nextStats = await api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`);
     setStats(nextStats);
   };
 
   useEffect(() => {
     refresh().catch((err) => toast(err instanceof Error ? err.message : "读取做题记录失败"));
-  }, [scope, year, month]);
+  }, [scope, year, month, statsDay]);
 
   const parsedQuestionPreview = Number(questionCount);
   const parsedCorrectPreview = Number(correctCount);
@@ -2851,6 +2929,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const summary = stats?.summary;
   const categoryRows = stats?.category_summary || buildEmptyRecordCategories();
   const activeCategories = categoryRows.filter((row) => row.record_count > 0).length;
+  const scopeLabel = scope === "day" ? statsDay.replace(/-/g, "/") : scope === "week" ? `${year}年${month}月` : `${year}年`;
 
   return (
     <main className="workspace records-workspace">
@@ -2861,11 +2940,18 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         </div>
         <div className="record-scope-controls">
           <div className="segmented">
+            <button className={scope === "day" ? "active" : ""} onClick={() => setScope("day")}>按日</button>
             <button className={scope === "week" ? "active" : ""} onClick={() => setScope("week")}>按周</button>
             <button className={scope === "month" ? "active" : ""} onClick={() => setScope("month")}>按月</button>
           </div>
-          <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
-          {scope === "week" && <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
+          {scope === "day" ? (
+            <input className="record-day-input" type="date" value={statsDay} onChange={(event) => setStatsDay(event.target.value || toDateKey(new Date()))} />
+          ) : (
+            <>
+              <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
+              {scope === "week" && <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
+            </>
+          )}
           <button className="primary-btn compact" type="button" onClick={() => setFormOpen(true)}>
             <Plus size={17} /> 新增记录
           </button>
@@ -2998,54 +3084,17 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         </div>
       )}
 
-      <div className="records-layout">
-        <section className="panel record-table-panel">
-          <div className="panel-title">
-            <h2>近期记录</h2>
-            <span>{records.length} 条</span>
-          </div>
-          {records.length ? (
-            <div className="record-list">
-              {records.slice(0, 12).map((record) => (
-                <article className="record-row" key={record.id}>
-                  <i style={{ background: categoryColor(record.category) }} />
-                  <div>
-                    <b>{record.label}</b>
-                    <span>{record.date} · {record.question_count ? `${record.correct_count}/${record.question_count} 题` : "未记录题量"}</span>
-                    {record.note && <p>{record.note}</p>}
-                    {record.issue_labels.length > 0 && (
-                      <div className="record-tags">
-                        {record.issue_labels.map((label) => (
-                          <span key={label}>{label}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <strong>{formatRecordAccuracy(record.accuracy)}</strong>
-                  <span>{record.minutes}min</span>
-                  <button className="icon-btn" title="删除" onClick={() => deleteRecord(record)}>
-                    <Trash2 size={16} />
-                  </button>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state small">还没有做题记录。先保存一条，趋势就会开始出现。</div>
-          )}
-        </section>
-      </div>
-
       <RecordInsightPanel stats={stats} />
 
       <div className="record-chart-grid">
-        <RecordTrendEChart title={scope === "week" ? "每周用时" : "每月用时"} metric="minutes" stats={stats} />
-        <RecordTrendEChart title={scope === "week" ? "每周正确率" : "每月正确率"} metric="accuracy" stats={stats} />
+        <RecordTrendEChart title={`${recordScopeName(scope)}用时`} metric="minutes" stats={stats} />
+        <RecordTrendEChart title={`${recordScopeName(scope)}正确率`} metric="accuracy" stats={stats} />
       </div>
 
       <section className="panel record-category-panel">
         <div className="panel-title">
           <h2>板块表现</h2>
-          <span>{scope === "week" ? `${year}年${month}月` : `${year}年`}</span>
+          <span>{scopeLabel}</span>
         </div>
         <div className="record-category-grid">
           {categoryRows.map((row) => (
@@ -3060,6 +3109,41 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="panel record-table-panel record-table-bottom">
+        <div className="panel-title">
+          <h2>近期记录</h2>
+          <span>{records.length} 条</span>
+        </div>
+        {records.length ? (
+          <div className="record-list">
+            {records.slice(0, 12).map((record) => (
+              <article className="record-row" key={record.id}>
+                <i style={{ background: categoryColor(record.category) }} />
+                <div>
+                  <b>{record.label}</b>
+                  <span>{record.date} · {record.question_count ? `${record.correct_count}/${record.question_count} 题` : "未记录题量"}</span>
+                  {record.note && <p>{record.note}</p>}
+                  {record.issue_labels.length > 0 && (
+                    <div className="record-tags">
+                      {record.issue_labels.map((label) => (
+                        <span key={label}>{label}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <strong>{formatRecordAccuracy(record.accuracy)}</strong>
+                <span>{record.minutes}min</span>
+                <button className="icon-btn" title="删除" onClick={() => deleteRecord(record)}>
+                  <Trash2 size={16} />
+                </button>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state small">还没有做题记录。先保存一条，趋势就会开始出现。</div>
+        )}
       </section>
     </main>
   );
@@ -3691,12 +3775,6 @@ function CalendarPage() {
   });
   const selectedRecords = recordsByDate.get(selectedDate) || [];
   const selectedRecordSummary = summarizeRecordList(selectedRecords);
-  const selectedRecordRows = recordCategories
-    .map((item) => {
-      const items = selectedRecords.filter((record) => record.category === item.category);
-      return { ...item, ...summarizeRecordList(items) };
-    })
-    .filter((item) => item.record_count > 0);
   const monthTitle = `${year}年 ${month}月`;
 
   const moveMonth = (delta: number) => {
@@ -3755,6 +3833,7 @@ function CalendarPage() {
                   className={[
                     "calendar-cell",
                     cell.inMonth ? "" : "outside",
+                    hasWork ? "worked" : "",
                     isToday ? "today" : "",
                     isSelected ? "selected" : "",
                     completion >= 100 ? "complete" : completion > 0 ? "partial" : ""
@@ -3818,37 +3897,28 @@ function CalendarPage() {
           <div className="calendar-record-list">
             <div className="calendar-section-title">
               <b>做题记录</b>
-              <span>{selectedRecords.length} 次</span>
+              <span>
+                {selectedRecordSummary.record_count} 次 · {selectedRecordSummary.question_count} 题 · {formatRecordAccuracy(selectedRecordSummary.accuracy)} · {selectedRecordSummary.minutes}min
+              </span>
             </div>
-            {selectedRecordRows.length ? (
-              <div className="calendar-record-cats">
-                {selectedRecordRows.map((row) => (
-                  <article key={row.category}>
-                    <i style={{ background: categoryColor(row.category) }} />
-                    <b>{row.label}</b>
-                    <span>{row.record_count} 次 · {row.question_count} 题 · {row.minutes}min</span>
-                    <strong>{formatRecordAccuracy(row.accuracy)}</strong>
+            {selectedRecords.length ? (
+              <div className="calendar-record-entries">
+                {selectedRecords.map((record) => (
+                  <article className="calendar-record-card" key={record.id}>
+                    <i style={{ background: categoryColor(record.category) }} />
+                    <div>
+                      <b>{record.label}</b>
+                      <span>{record.correct_count}/{record.question_count} 题 · {formatRecordAccuracy(record.accuracy)} · {record.minutes}min</span>
+                      {record.issue_labels.length ? <small>{record.issue_labels.join(" / ")}</small> : null}
+                      {record.note && <p>{record.note}</p>}
+                    </div>
+                    <strong>{formatRecordAccuracy(record.accuracy)}</strong>
                   </article>
                 ))}
               </div>
             ) : (
               <div className="empty-state small">这一天还没有保存做题记录。</div>
             )}
-            {selectedRecords.length ? (
-              <div className="calendar-record-entries">
-                {selectedRecords.map((record) => (
-                  <article key={record.id}>
-                    <i style={{ background: categoryColor(record.category) }} />
-                    <div>
-                      <b>{record.label}</b>
-                      <span>{record.correct_count}/{record.question_count} 题 · {record.accuracy}% · {record.minutes}min</span>
-                      {record.note && <p>{record.note}</p>}
-                      {record.issue_labels.length ? <small>{record.issue_labels.join(" / ")}</small> : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : null}
           </div>
         </aside>
       </div>
