@@ -8,6 +8,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   FilePenLine,
   Gauge,
@@ -2350,6 +2352,7 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
   const [quickAdding, setQuickAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [reorderingId, setReorderingId] = useState<number | null>(null);
 
   const draftItems = parseStickyDraft(draft);
   const completion = note?.item_count ? Math.round(((note.done_count || 0) * 100) / note.item_count) : 0;
@@ -2512,6 +2515,36 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
     }
   };
 
+  const moveItem = async (item: StickyNoteItem, direction: -1 | 1) => {
+    const currentItems = note?.items || [];
+    const currentIndex = currentItems.findIndex((entry) => entry.id === item.id);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentItems.length || reorderingId !== null) return;
+    const nextItems = [...currentItems];
+    [nextItems[currentIndex], nextItems[nextIndex]] = [nextItems[nextIndex], nextItems[currentIndex]];
+    setReorderingId(item.id);
+    setNote((current) => current ? { ...current, items: nextItems.map((entry, index) => ({ ...entry, sort_order: index })) } : current);
+    try {
+      await Promise.all(
+        nextItems.map((entry, index) =>
+          entry.sort_order === index
+            ? Promise.resolve()
+            : api<StickyNote>(`/sticky-notes/items/${entry.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ sort_order: index })
+              })
+        )
+      );
+      await loadNote();
+      loadHistory().catch(() => undefined);
+    } catch (err) {
+      loadNote().catch(() => undefined);
+      toast(err instanceof Error ? err.message : "调整顺序失败");
+    } finally {
+      setReorderingId(null);
+    }
+  };
+
   const turnPage = (direction: 1 | -1) => {
     const nextPage = currentPage + direction;
     if (turningPage || nextPage < 0 || nextPage >= totalPages) return;
@@ -2618,8 +2651,10 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
           <div className="sticky-list">
             {pageItems.length ? (
               <>
-              {pageItems.map((item) => (
-                <article className={`sticky-task ${item.is_done ? "done" : ""} ${togglingId === item.id ? "just-toggled" : ""}`} key={item.id}>
+              {pageItems.map((item) => {
+                const itemIndex = sortedItems.findIndex((entry) => entry.id === item.id);
+                return (
+                <article className={`sticky-task ${editMode && canEdit ? "editing" : ""} ${item.is_done ? "done" : ""} ${togglingId === item.id ? "just-toggled" : ""}`} key={item.id}>
                   <button
                     className="sticky-check"
                     type="button"
@@ -2644,12 +2679,21 @@ function StickyNotesPage({ toast }: { toast: (message: string) => void }) {
                   )}
                   {togglingId === item.id && item.is_done && <span className="sticky-pencil" aria-hidden="true" />}
                   {editMode && canEdit ? (
-                  <button className="sticky-delete" title="删除" type="button" onClick={() => deleteItem(item)}>
-                    <Trash2 size={15} />
-                  </button>
+                    <div className="sticky-edit-actions" aria-label={`${item.title} 排序和删除`}>
+                      <button className="sticky-order-btn" title="上移" type="button" onClick={() => moveItem(item, -1)} disabled={itemIndex <= 0 || reorderingId !== null}>
+                        <ChevronUp size={14} />
+                      </button>
+                      <button className="sticky-order-btn" title="下移" type="button" onClick={() => moveItem(item, 1)} disabled={itemIndex < 0 || itemIndex >= sortedItems.length - 1 || reorderingId !== null}>
+                        <ChevronDown size={14} />
+                      </button>
+                      <button className="sticky-delete" title="删除" type="button" onClick={() => deleteItem(item)} disabled={reorderingId === item.id}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   ) : <span className="sticky-task-spacer" />}
                 </article>
-              ))}
+              );
+              })}
               {canEdit && !editMode && !shouldShowDraft && currentPage === totalPages - 1 ? (
                 quickAddOpen ? (
                   <div className="sticky-quick-add">

@@ -5781,8 +5781,13 @@ select {
   color: var(--note-ink);
 }
 
+.sticky-task.editing {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+}
+
 .sticky-check,
-.sticky-delete {
+.sticky-delete,
+.sticky-order-btn {
   display: grid;
   width: 32px;
   height: 32px;
@@ -5795,12 +5800,15 @@ select {
 }
 
 .sticky-check:hover,
-.sticky-delete:hover {
+.sticky-delete:hover,
+.sticky-order-btn:hover {
   background: rgba(255, 255, 255, 0.48);
   transform: translateY(-1px);
 }
 
-.sticky-check:disabled {
+.sticky-check:disabled,
+.sticky-delete:disabled,
+.sticky-order-btn:disabled {
   cursor: not-allowed;
   opacity: 0.48;
   transform: none;
@@ -5940,7 +5948,18 @@ select {
   opacity: 0.58;
 }
 
-.sticky-task:hover .sticky-delete {
+.sticky-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sticky-order-btn {
+  opacity: 0.62;
+}
+
+.sticky-task:hover .sticky-delete,
+.sticky-task:hover .sticky-order-btn {
   opacity: 1;
 }
 
@@ -6926,6 +6945,10 @@ select {
   border-bottom: 1px solid rgba(73, 71, 63, 0.12);
 }
 
+.paper-notes-workspace .sticky-task.editing {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+
 .paper-notes-workspace .sticky-check {
   width: 15px;
   height: 15px;
@@ -6971,15 +6994,29 @@ select {
 }
 
 .paper-notes-workspace .sticky-delete,
+.paper-notes-workspace .sticky-order-btn,
 .paper-notes-workspace .sticky-task-spacer {
   width: 26px;
   height: 26px;
 }
 
-.paper-notes-workspace .sticky-delete {
+.paper-notes-workspace .sticky-edit-actions {
+  gap: 2px;
+}
+
+.paper-notes-workspace .sticky-delete,
+.paper-notes-workspace .sticky-order-btn {
   border: 0;
   border-radius: 4px;
+  background: transparent;
+}
+
+.paper-notes-workspace .sticky-delete {
   color: rgba(186, 26, 26, 0.72);
+}
+
+.paper-notes-workspace .sticky-order-btn {
+  color: rgba(98, 95, 79, 0.78);
   background: transparent;
 }
 
