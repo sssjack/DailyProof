@@ -216,7 +216,7 @@ export function RecordTrendEChart({
       smooth: true,
       symbol: "circle",
       symbolSize: 7,
-      connectNulls: false,
+      connectNulls: true,
       itemStyle: { color: item.color },
       lineStyle: { color: item.color, width: selectedMetric === item.key ? 3.4 : 2.7 },
       emphasis: { focus: "series" as const },
