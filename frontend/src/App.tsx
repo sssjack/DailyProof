@@ -2792,10 +2792,15 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
-    const params = new URLSearchParams({ scope: scope === "day" ? "range" : scope, year: String(year), month: String(month) });
+    const statsBaseDate = /^\d{4}-\d{2}-\d{2}$/.test(statsDay) ? dateFromKey(statsDay) : today;
+    const params = new URLSearchParams({
+      scope: scope === "day" ? "range" : scope,
+      year: String(scope === "day" ? statsBaseDate.getFullYear() : year),
+      month: String(scope === "day" ? statsBaseDate.getMonth() + 1 : month)
+    });
     if (scope === "day") {
-      params.set("start_date", statsDay);
-      params.set("end_date", statsDay);
+      params.set("start_date", toDateKey(startOfMonth(statsBaseDate)));
+      params.set("end_date", toDateKey(endOfMonth(statsBaseDate)));
     }
     const nextStats = await api<PracticeRecordStats>(`/practice-records/stats?${params.toString()}`);
     setStats(nextStats);
@@ -2929,12 +2934,17 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
   const summary = stats?.summary;
   const categoryRows = stats?.category_summary || buildEmptyRecordCategories();
   const activeCategories = categoryRows.filter((row) => row.record_count > 0).length;
-  const scopeLabel = scope === "day" ? statsDay.replace(/-/g, "/") : scope === "week" ? `${year}年${month}月` : `${year}年`;
+  const statsBaseDate = /^\d{4}-\d{2}-\d{2}$/.test(statsDay) ? dateFromKey(statsDay) : today;
+  const scopeLabel = scope === "day" ? `${statsBaseDate.getFullYear()}年${statsBaseDate.getMonth() + 1}月` : scope === "week" ? `${year}年${month}月` : `${year}年`;
   const latestRecordDate = records[0]?.date;
 
   const switchRecordScope = (nextScope: RecordScope) => {
     if (nextScope === "day" && scope !== "day") {
       setStatsDay(latestRecordDate || toDateKey(new Date()));
+    }
+    if (nextScope !== "day" && scope === "day") {
+      setYear(statsBaseDate.getFullYear());
+      setMonth(statsBaseDate.getMonth() + 1);
     }
     setScope(nextScope);
   };
@@ -2947,22 +2957,26 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
           <h1>把每一次做题，沉淀成可追踪的趋势。</h1>
         </div>
         <div className="record-scope-controls">
-          <div className="segmented">
-            <button className={scope === "day" ? "active" : ""} onClick={() => switchRecordScope("day")}>按日</button>
-            <button className={scope === "week" ? "active" : ""} onClick={() => switchRecordScope("week")}>按周</button>
-            <button className={scope === "month" ? "active" : ""} onClick={() => switchRecordScope("month")}>按月</button>
+          <div className="record-control-bar">
+            <div className="segmented record-scope-switch">
+              <button className={scope === "day" ? "active" : ""} onClick={() => switchRecordScope("day")}>按日</button>
+              <button className={scope === "week" ? "active" : ""} onClick={() => switchRecordScope("week")}>按周</button>
+              <button className={scope === "month" ? "active" : ""} onClick={() => switchRecordScope("month")}>按月</button>
+            </div>
+            <div className={`record-period-control ${scope === "week" ? "record-period-grid" : ""}`}>
+              {scope === "day" ? (
+                <input className="record-day-input" aria-label="按日走势所在月份" type="date" value={statsDay} onChange={(event) => setStatsDay(event.target.value || toDateKey(new Date()))} />
+              ) : (
+                <>
+                  <input aria-label="年份" type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
+                  {scope === "week" && <input aria-label="月份" type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
+                </>
+              )}
+            </div>
+            <button className="primary-btn compact record-add-btn" type="button" onClick={() => setFormOpen(true)}>
+              <Plus size={17} /> 新增记录
+            </button>
           </div>
-          {scope === "day" ? (
-            <input className="record-day-input" type="date" value={statsDay} onChange={(event) => setStatsDay(event.target.value || toDateKey(new Date()))} />
-          ) : (
-            <>
-              <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} />
-              {scope === "week" && <input type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value))} />}
-            </>
-          )}
-          <button className="primary-btn compact" type="button" onClick={() => setFormOpen(true)}>
-            <Plus size={17} /> 新增记录
-          </button>
         </div>
       </div>
 
@@ -3092,12 +3106,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
         </div>
       )}
 
-      <RecordInsightPanel stats={stats} />
-
-      <div className="record-chart-grid">
-        <RecordTrendEChart title={`${recordScopeName(scope)}用时`} metric="minutes" stats={stats} />
-        <RecordTrendEChart title={`${recordScopeName(scope)}正确率`} metric="accuracy" stats={stats} />
-      </div>
+      <RecordTrendEChart title={`${recordScopeName(scope)}表现趋势`} subtitle={`${scopeLabel} · 总体用时 / 总体正确率 / 平均每题用时`} stats={stats} />
 
       <section className="panel record-category-panel">
         <div className="panel-title">
@@ -3153,6 +3162,7 @@ function PracticeRecordsPage({ toast }: { toast: (message: string) => void }) {
           <div className="empty-state small">还没有做题记录。先保存一条，趋势就会开始出现。</div>
         )}
       </section>
+      <RecordInsightPanel stats={stats} />
     </main>
   );
 }
@@ -3624,11 +3634,7 @@ function StatsCenter() {
           <AIErrorAnalysisSection stats={recordStats} />
           <TrendAlertPanel stats={recordStats} />
           <CoachReportPanel monthly={stats} records={recordStats} />
-          <RecordInsightPanel stats={recordStats} />
-          <div className="record-chart-grid analytics-record-charts">
-            <RecordTrendEChart title={`${selectedRecordRange.label}用时`} metric="minutes" stats={recordStats} />
-            <RecordTrendEChart title={`${selectedRecordRange.label}正确率`} metric="accuracy" stats={recordStats} />
-          </div>
+          <RecordTrendEChart title={`${selectedRecordRange.label}走势`} subtitle="总体用时 / 总体正确率 / 平均每题用时" stats={recordStats} />
           <RadarChart stats={recordStats} />
           <section className="panel record-category-panel analytics-record-category">
             <div className="panel-title">
@@ -3649,6 +3655,7 @@ function StatsCenter() {
               ))}
             </div>
           </section>
+          <RecordInsightPanel stats={recordStats} />
         </>
       ) : (
         <>

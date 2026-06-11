@@ -3693,22 +3693,61 @@ select {
 
 .record-scope-controls {
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
-  min-width: 320px;
+  min-width: min(100%, 610px);
 }
 
-.record-scope-controls .segmented {
-  min-width: 164px;
+.record-control-bar {
+  display: grid;
+  grid-template-columns: 210px minmax(146px, 190px) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 58%),
+    color-mix(in srgb, var(--panel-solid) 76%, transparent);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow) 44%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.record-scope-switch {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.record-scope-switch button {
+  min-height: 42px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.record-period-control {
+  display: grid;
+  min-width: 0;
+}
+
+.record-period-grid {
+  grid-template-columns: minmax(82px, 1fr) minmax(66px, 0.72fr);
+  gap: 8px;
 }
 
 .record-scope-controls input {
-  width: 106px;
+  width: 100%;
+  min-height: 50px;
+  border-radius: 8px;
+  font-weight: 850;
 }
 
 .record-scope-controls .record-day-input {
-  width: 156px;
+  min-width: 154px;
+}
+
+.record-add-btn {
+  min-height: 50px;
+  padding-inline: 18px;
+  white-space: nowrap;
 }
 
 .records-metrics {
@@ -4143,6 +4182,46 @@ select {
 
 .analytics-record-charts {
   margin-top: 16px;
+}
+
+.record-trend-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.record-trend-head {
+  align-items: flex-start;
+}
+
+.record-trend-head > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.record-trend-filter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.record-trend-filter button {
+  min-height: 31px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-solid) 66%, transparent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.record-trend-filter button.active,
+.record-trend-filter button:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .records-layout {
@@ -4833,6 +4912,27 @@ select {
   .record-scope-controls {
     justify-content: flex-start;
     min-width: 0;
+    width: 100%;
+  }
+
+  .record-control-bar {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .record-period-control,
+  .record-scope-controls .record-day-input,
+  .record-add-btn {
+    width: 100%;
+  }
+
+  .record-trend-head {
+    gap: 10px;
+    flex-direction: column;
+  }
+
+  .record-trend-filter {
+    justify-content: flex-start;
     width: 100%;
   }
 
