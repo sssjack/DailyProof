@@ -4262,6 +4262,92 @@ select {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.record-trend-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.record-trend-mini {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--trend-color) 24%, var(--line));
+  border-radius: 8px;
+  padding: 12px 12px 6px;
+  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+}
+
+.record-trend-mini-head,
+.record-trend-focus-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.record-trend-mini-head > div,
+.record-trend-focus-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.record-trend-mini-head b,
+.record-trend-focus-head b {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.record-trend-mini-head span:not(.trend-color-line),
+.record-trend-focus-head span:not(.trend-color-line) {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.record-trend-mini-head span.good,
+.record-trend-focus-head span.good {
+  color: #16a34a;
+}
+
+.record-trend-mini-head span.bad,
+.record-trend-focus-head span.bad {
+  color: #dc2626;
+}
+
+.record-trend-mini-head strong,
+.record-trend-focus-head strong {
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.trend-color-line {
+  width: 4px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--trend-color);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--trend-color) 24%, transparent);
+}
+
+.record-trend-focus {
+  margin-top: 18px;
+}
+
+.record-trend-focus-head {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--trend-color) 22%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-solid) 70%, transparent);
+}
+
+.record-trend-focus-chart {
+  min-height: 336px;
+}
+
 .records-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -4982,6 +5068,21 @@ select {
   .record-trend-filter {
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .record-trend-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .record-trend-mini-head,
+  .record-trend-focus-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .record-trend-mini-head strong,
+  .record-trend-focus-head strong {
+    grid-column: 2;
+    font-size: 18px;
   }
 
   .records-metrics,
