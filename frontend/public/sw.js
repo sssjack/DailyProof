@@ -1,4 +1,4 @@
-const CACHE_NAME = "dailyproof-static-v20260607";
+const CACHE_NAME = "policyquest-static-v20260612";
 const APP_SHELL = ["/DailyProof/", "/DailyProof/manifest.webmanifest", "/DailyProof/dailyproof-icon.svg"];
 
 self.addEventListener("install", (event) => {

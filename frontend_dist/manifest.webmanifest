@@ -1,13 +1,13 @@
 {
-  "name": "DailyProof",
-  "short_name": "DailyProof",
-  "description": "DailyProof turns daily study plans and practice records into visible progress evidence.",
+  "name": "PolicyQuest AI Exam Coach",
+  "short_name": "PolicyQuest",
+  "description": "PolicyQuest brings exam tracks, daily practice, AI review, and progress analytics into one focused study workspace.",
   "start_url": "/DailyProof/",
   "scope": "/DailyProof/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#071016",
-  "theme_color": "#071016",
+  "background_color": "#f8fbff",
+  "theme_color": "#0066ff",
   "icons": [
     {
       "src": "/DailyProof/dailyproof-icon.svg",
