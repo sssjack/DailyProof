@@ -1,13 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PolicyQuest">
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <circle cx="364" cy="148" r="78" fill="#86f2e4" opacity=".32"/>
-  <path d="M152 372V140h115c31 0 59 6 82 19 23 12 41 29 54 51 13 21 19 46 19 75 0 28-6 53-19 74-13 21-31 38-54 50-23 12-51 18-82 18h-48v-64h43c27 0 48-7 62-20 14-14 21-33 21-58 0-26-7-45-21-59-14-14-35-21-62-21h-39v167h-71Z" fill="#ffffff"/>
-  <path d="M160 372h118" stroke="#86f2e4" stroke-width="28" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="DailyProof">
+  <rect width="512" height="512" rx="112" fill="#071016"/>
+  <path d="M118 365V147h125c47 0 84 12 111 37 27 24 40 58 40 102 0 26-6 49-18 69-12 20-29 35-52 46-22 11-48 16-79 16H118Zm69-57h55c27 0 48-7 62-20 14-13 21-32 21-58s-7-45-21-58c-14-13-35-20-62-20h-55v156Z" fill="url(#mark)"/>
+  <path d="m209 276 43 43 92-111" fill="none" stroke="#ffcf66" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
   <defs>
-    <linearGradient id="bg" x1="70" x2="450" y1="76" y2="440" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0066ff"/>
-      <stop offset=".55" stop-color="#2788ff"/>
-      <stop offset="1" stop-color="#00bcd4"/>
+    <linearGradient id="mark" x1="118" x2="394" y1="147" y2="417" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
     </linearGradient>
   </defs>
 </svg>

@@ -14,9 +14,7 @@ import {
   FilePenLine,
   Gauge,
   Home,
-  Landmark,
   LogOut,
-  Map as MapIcon,
   Moon,
   Pause,
   Play,
@@ -65,15 +63,13 @@ type TaskPatchPayload = Partial<
   Pick<Task, "status" | "note" | "result_question_count" | "result_accuracy" | "result_minutes">
 >;
 
+const heroUrl = `${import.meta.env.BASE_URL}hero-dailyproof.png`;
+
 const themes: Array<{ id: ThemeName; label: string; icon: ReactNode }> = [
   { id: "dawn", label: "明晰", icon: <Sun size={15} /> },
   { id: "pulse", label: "智能", icon: <Sparkles size={15} /> },
   { id: "night", label: "专注", icon: <Moon size={15} /> }
 ];
-
-function displayUserName(name?: string) {
-  return (name || "PolicyQuest 用户").replace(/DailyProof/g, "PolicyQuest");
-}
 
 const practiceTags = [
   "data_analysis",
@@ -289,7 +285,7 @@ function App() {
   const onAuthed = (nextUser: User) => {
     setUser(nextUser);
     setView("dashboard");
-    setToast(`欢迎回来，${displayUserName(nextUser.name)}`);
+    setToast(`欢迎回来，${nextUser.name}`);
   };
 
   const logout = () => {
@@ -300,7 +296,7 @@ function App() {
   };
 
   if (booting) {
-    return <div className="boot">PolicyQuest 正在校准今日节奏...</div>;
+    return <div className="boot">DailyProof 正在校准今日节奏...</div>;
   }
 
   return (
@@ -378,9 +374,9 @@ function TopBar({
 }) {
   return (
     <header className={`topbar ${user ? "app-sidebar" : "public-topbar"}`}>
-      <button className="brand" onClick={() => setView(user ? "dashboard" : "home")} title="PolicyQuest">
-        <span className="brand-mark">P</span>
-        <span className="brand-copy">PolicyQuest</span>
+      <button className="brand" onClick={() => setView(user ? "dashboard" : "home")} title="DailyProof">
+        <span className="brand-mark">D</span>
+        <span className="brand-copy">DailyProof</span>
       </button>
       <nav className="topnav">
         <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>
@@ -424,14 +420,14 @@ function TopBar({
         {user ? (
           <>
             <span className="user-pill">
-              <UserRound size={15} /> {displayUserName(user.name)}
+              <UserRound size={15} /> {user.name}
             </span>
             <button className="icon-btn" onClick={logout} title="退出">
               <LogOut size={18} />
             </button>
           </>
         ) : (
-          <span className="api-chip">AI Exam Coach</span>
+          <span className="api-chip">DailyProof</span>
         )}
       </div>
     </header>
@@ -453,15 +449,15 @@ function Landing({
 }) {
   return (
     <main className="home-page">
-      <section className="hero home-hero">
+      <section className="hero home-hero" style={{ backgroundImage: `var(--home-hero-overlay), url(${heroUrl})` }}>
         <div className="hero-content home-hero-copy">
-          <p className="eyebrow"><span /> AI civil service coach</p>
+          <p className="eyebrow"><span /> Proof before promise</p>
           <h1>
-            PolicyQuest
-            <span>公务员考试智能教练</span>
+            把每天变成
+            <span>可见的证据。</span>
           </h1>
           <p className="hero-copy">
-            把行测、申论、专项练习和 AI 评阅整合进一个清晰工作台：每天知道练什么、错在哪、下一步如何提分。
+            DailyProof 把月计划拆成轻盈的每日节奏：专注、刷题、复盘和正确率都被记录下来，让进步不再靠感觉，而是被清晰地看见。
           </p>
           <div className="hero-actions">
             <a className="primary-link" href="#auth">
@@ -471,9 +467,9 @@ function Landing({
               查看流程
             </a>
           </div>
-          <div className="home-proof-strip" aria-label="PolicyQuest 工作流预览">
-            <span><b>国考</b> 目标赛道</span>
-            <span><b>AI</b> 申论评阅</span>
+          <div className="home-proof-strip" aria-label="DailyProof 工作流预览">
+            <span><b>01</b> 月计划自动拆解</span>
+            <span><b>27min</b> 控制单套用时</span>
             <span><b>90%</b> 正确率目标</span>
           </div>
         </div>
@@ -486,15 +482,15 @@ function Landing({
 
       <section id="guide" className="guide-band home-guide">
         <div className="section-head">
-          <p className="eyebrow"><span /> PolicyQuest workflow</p>
-          <h2>从目标赛道到每日训练，所有进步都能被看见。</h2>
+          <p className="eyebrow"><span /> Daily operating system</p>
+          <h2>目标不是一句口号，而是一组每天可验证的数据。</h2>
         </div>
         <div className="guide-grid">
           {[
-            ["选择赛道", "围绕国考、省考和事业编建立不同题库、目标与专项训练节奏。"],
-            ["AI 评阅", "申论与复盘内容由 AI 拆解成分数、亮点、短板和下一步动作。"],
-            ["趋势统计", "按资料分析、数量关系、言语理解等模块观察正确率、用时和效率变化。"],
-            ["每日闭环", "计划、刷题、记录、复盘在同一个工作台里完成，减少切换成本。"]
+            ["定月计划", "输入目标、时段和复盘要求，系统把月目标拆成每天可执行的任务节奏。"],
+            ["两类任务", "事项一键完成，刷题任务记录题量、正确率、用时和标签，复盘更有依据。"],
+            ["趋势统计", "按资料分析、数量关系、言语理解等标签汇总日、周、月和总数据。"],
+            ["日历回看", "像翻日历一样看见每天的完成率、刷题量和任务轨迹。"]
           ].map(([title, text], index) => (
             <article className="guide-card" key={title}>
               <span>{String(index + 1).padStart(2, "0")}</span>
@@ -522,25 +518,25 @@ function SignedInHomePanel({
   return (
     <aside className="auth-panel signed-home-panel">
       <div className="signed-home-mark">
-        <span>P</span>
+        <span>D</span>
         <div>
           <b>欢迎回来</b>
-          <p>{displayUserName(user.name)}</p>
+          <p>{user.name}</p>
         </div>
       </div>
       <div className="signed-home-copy">
-        <h2>继续推进今日备考。</h2>
-        <p>从工作台进入今日计划，完成练习后查看 AI 复盘和数据分析。</p>
+        <h2>继续把今天变成证据。</h2>
+        <p>从今日任务开始，完成刷题后再回到 Analytics 看每次用时和正确率的变化。</p>
       </div>
       <div className="signed-home-actions">
         <button className="primary-btn" onClick={onEnterApp}>
-          <ClipboardList size={18} /> 工作台
+          <ClipboardList size={18} /> 今日任务
         </button>
         <button className="ghost-btn" onClick={onOpenRecords}>
           <FilePenLine size={18} /> 做题记录
         </button>
         <button className="ghost-btn" onClick={onOpenAnalytics}>
-          <BarChart3 size={18} /> 数据分析
+          <BarChart3 size={18} /> 查看统计
         </button>
       </div>
       <div className="signed-home-stats">
@@ -555,7 +551,7 @@ function AuthPanel({ onAuthed }: { onAuthed: (user: User) => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("admin@dailyproof.cn");
   const [password, setPassword] = useState("DailyProof@2026");
-  const [name, setName] = useState("PolicyQuest 用户");
+  const [name, setName] = useState("DailyProof 用户");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1000,16 +996,16 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
     <main className="workspace dashboard-workspace">
       <div className="page-head dashboard-head">
         <div className="page-copy">
-          <p className="eyebrow"><span /> PolicyQuest workbench</p>
+          <p className="eyebrow"><span /> Today proof</p>
           <h1>
-            准备好迎接考试了吗，
-            <span className="headline-gradient">{displayUserName(user.name)}？</span>
+            让今天成为一枚
+            <span className="headline-gradient">清晰的证据。</span>
           </h1>
-          <p className="page-subtitle">智能驱动，高效备考。把今日计划、专项练习、AI 复盘和趋势数据放在同一个清晰工作台。</p>
+          <p className="page-subtitle">像呼吸一样推进计划：轻盈开始，专注执行，把每一段时间都沉淀成看得见的证据。</p>
         </div>
         <div className="head-actions date-card">
           <b>{displayDate}</b>
-          <span>{weekday} · 今日训练节奏</span>
+          <span>{weekday}, keep going!</span>
           <button className="primary-btn compact" onClick={refresh}>
             <RefreshCw size={17} /> 同步
           </button>
@@ -1022,7 +1018,6 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
         <Metric icon={<BookOpen />} label="月刷题量" value={`${stats?.question_total || 0}`} />
       </div>
 
-      <PolicyQuestTrackPanel stats={stats} records={recordStats} />
       <TodayReviewPanel daily={daily} monthly={stats} records={recordStats} plan={currentPlan} />
       <AICoachPanel stats={stats} recordStats={recordStats} />
 
@@ -1113,57 +1108,6 @@ function Dashboard({ user, toast }: { user: User; toast: (message: string) => vo
         </aside>
       </div>
     </main>
-  );
-}
-
-function PolicyQuestTrackPanel({ stats, records }: { stats: MonthlyStats | null; records: PracticeRecordStats | null }) {
-  const activeCategories = records?.category_summary.filter((row) => row.record_count > 0).length || 0;
-  const tracks = [
-    {
-      icon: <Landmark size={30} />,
-      title: "国家公务员考试",
-      description: "行测 + 申论双线推进，适合建立完整备考闭环。",
-      meta: `${stats?.question_total || 0} 题已训练`,
-      tone: "blue"
-    },
-    {
-      icon: <MapIcon size={30} />,
-      title: "各省公务员考试",
-      description: "按地区题型差异复盘，关注资料分析、数量关系和判断推理。",
-      meta: `${activeCategories}/7 模块已覆盖`,
-      tone: "teal"
-    },
-    {
-      icon: <Target size={30} />,
-      title: "事业单位招聘",
-      description: "用每日计划和错因标签沉淀稳定发挥能力。",
-      meta: `${stats?.completion_rate || 0}% 本月进度`,
-      tone: "coral"
-    }
-  ];
-
-  return (
-    <section className="policy-track-panel">
-      <div className="panel-title">
-        <div>
-          <h2>目标赛道</h2>
-          <span>Choose your exam track</span>
-        </div>
-        <button className="soft-action" type="button">
-          <Sparkles size={16} /> AI 推荐路径
-        </button>
-      </div>
-      <div className="policy-track-grid">
-        {tracks.map((track) => (
-          <article className={`policy-track-card ${track.tone}`} key={track.title}>
-            <div className="policy-track-icon">{track.icon}</div>
-            <h3>{track.title}</h3>
-            <p>{track.description}</p>
-            <span>{track.meta}</span>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 
