@@ -71,6 +71,14 @@ const themes: Array<{ id: ThemeName; label: string; icon: ReactNode }> = [
   { id: "night", label: "专注", icon: <Moon size={15} /> }
 ];
 
+function displayUserName(name?: string) {
+  const legacyBrand = ["Policy", "Quest"].join("");
+  const legacyCoach = ["公务员考试", "智能教练"].join("");
+  return (name || "DailyProof 用户")
+    .split(legacyBrand).join("DailyProof")
+    .split(legacyCoach).join("DailyProof");
+}
+
 const practiceTags = [
   "data_analysis",
   "quantitative",
@@ -285,7 +293,7 @@ function App() {
   const onAuthed = (nextUser: User) => {
     setUser(nextUser);
     setView("dashboard");
-    setToast(`欢迎回来，${nextUser.name}`);
+    setToast(`欢迎回来，${displayUserName(nextUser.name)}`);
   };
 
   const logout = () => {
@@ -420,7 +428,7 @@ function TopBar({
         {user ? (
           <>
             <span className="user-pill">
-              <UserRound size={15} /> {user.name}
+              <UserRound size={15} /> {displayUserName(user.name)}
             </span>
             <button className="icon-btn" onClick={logout} title="退出">
               <LogOut size={18} />
@@ -521,7 +529,7 @@ function SignedInHomePanel({
         <span>D</span>
         <div>
           <b>欢迎回来</b>
-          <p>{user.name}</p>
+          <p>{displayUserName(user.name)}</p>
         </div>
       </div>
       <div className="signed-home-copy">

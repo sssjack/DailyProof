@@ -8026,10 +8026,7 @@ select {
 }
 
 /* ─── DailyProof Refresh ─── */
-.app-shell,
-.app-shell[data-theme="dawn"],
-.app-shell[data-theme="pulse"],
-.app-shell[data-theme="night"] {
+.app-shell {
   --bg: #f8f9ff;
   --bg-top: #ffffff;
   --panel: rgba(255, 255, 255, 0.88);
@@ -8054,10 +8051,16 @@ select {
   font-family: var(--body-font);
 }
 
-body[data-theme="dawn"],
-body[data-theme="pulse"],
-body[data-theme="night"] {
+body[data-theme="dawn"] {
   background: #f8f9ff;
+}
+
+body[data-theme="pulse"] {
+  background: #f9f7ff;
+}
+
+body[data-theme="night"] {
+  background: #08111f;
 }
 
 .public-topbar {
