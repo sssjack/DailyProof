@@ -505,7 +505,7 @@ def ai_coaching(
     _: models.User = Depends(current_user),
 ) -> dict:
     if not is_ai_available():
-        return {"available": False, "message": "未配置 DeepSeek API Key"}
+        return {"available": False, "message": "未配置 AI API Key"}
     content = generate_coaching(payload.stats_summary)
     if content is None:
         return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}
@@ -518,7 +518,7 @@ def ai_weekly_report(
     _: models.User = Depends(current_user),
 ) -> dict:
     if not is_ai_available():
-        return {"available": False, "message": "未配置 DeepSeek API Key"}
+        return {"available": False, "message": "未配置 AI API Key"}
     content = generate_weekly_report(payload.stats_summary, payload.records_summary)
     if content is None:
         return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}
@@ -531,7 +531,7 @@ def ai_error_analysis(
     _: models.User = Depends(current_user),
 ) -> dict:
     if not is_ai_available():
-        return {"available": False, "message": "未配置 DeepSeek API Key"}
+        return {"available": False, "message": "未配置 AI API Key"}
     content = generate_error_analysis(payload.issue_summary, payload.category_summary)
     if content is None:
         return {"available": True, "content": None, "message": "AI 服务暂时不可用，请稍后重试"}

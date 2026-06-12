@@ -27,8 +27,11 @@ class Settings(BaseSettings):
     default_user_email: str = "demo@dailyproof.cn"
     default_user_password: str = "Demo@2026"
 
-    deepseek_api_url: str = "https://api.deepseek.com/chat/completions"
+    ai_api_url: str = ""
+    ai_api_key: str = ""
+    ai_model: str = ""
     deepseek_api_key: str = ""
+    deepseek_api_url: str = "https://api.deepseek.com/chat/completions"
     deepseek_model: str = "deepseek-v4-pro"
     ai_http_timeout_sec: int = 45
 

@@ -829,7 +829,7 @@ function AICoachPanel({ stats, recordStats }: { stats: MonthlyStats | null; reco
       </div>
       {loading && <div className="ai-loading-skeleton"><div /><div /><div /></div>}
       {!loading && coaching?.available === false && (
-        <div className="ai-unavailable-notice">{coaching.message || "未配置 DeepSeek API Key"}</div>
+        <div className="ai-unavailable-notice">{coaching.message || "未配置 AI API Key"}</div>
       )}
       {!loading && coaching?.content && (
         <div className="ai-content">{coaching.content.split("\n").map((line, i) => line.trim() ? <p key={i}>{line}</p> : null)}</div>
